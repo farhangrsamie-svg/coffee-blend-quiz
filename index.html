@@ -150,6 +150,7 @@
   .item .left{flex:1; min-width:0;}
   .item .name{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:16px; margin-bottom:4px;}
   .item .tags{font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-soft);}
+  .store-tag{color:var(--spruce); font-weight:600;}
   .item .why{font-size:13px; color:var(--ink-soft); margin-top:8px; line-height:1.5;}
   .item .pct-col{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:20px; flex-shrink:0;}
 
@@ -158,6 +159,20 @@
     font-size:13px; color:var(--ink); line-height:1.55; margin-bottom:26px;
   }
   .note b{color:var(--lingon);}
+
+  /* ---- Alternate blend ---- */
+  .alt-divider{border-top:1px dashed var(--line); margin:34px 0 26px;}
+  .alt-sub{font-size:13px; color:var(--ink-soft); margin:0 0 16px;}
+  .alt-bar{height:40px; opacity:.92;}
+  .alt-bar .blend-seg .pct{font-size:13px;}
+  .alt-items{display:flex; flex-direction:column; gap:8px; margin-top:18px;}
+  .alt-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    font-size:13px; padding:10px 14px; background:var(--paper-raised); border:1px solid var(--line);
+  }
+  .alt-item-name{font-weight:600; flex:1;}
+  .alt-item-store{color:var(--spruce); font-family:'IBM Plex Mono',monospace; font-size:11px;}
+  .alt-item-pct{font-weight:600;}
 
   .restart{display:flex; justify-content:center; margin-top:12px;}
 
@@ -283,6 +298,18 @@
     <div id="fallback-note" class="note" style="display:none;"></div>
 
     <div class="items" id="items-list"></div>
+
+    <section id="alternate-section" style="display:none;">
+      <div class="alt-divider"></div>
+      <div class="result-eyebrow" data-en="Or, try this instead" data-fi="Tai kokeile tätä"></div>
+      <p class="alt-sub" data-en="A different base bean, for a different mood." data-fi="Eri perustapapu, erilaiseen fiilikseen."></p>
+      <div class="blend-bar alt-bar" id="alt-blend-bar"></div>
+      <div class="match-row">
+        <span class="num mono" id="alt-match-score" style="font-size:16px;"></span>
+        <span class="lbl" data-en="taste match" data-fi="makuvastaavuus"></span>
+      </div>
+      <div class="alt-items" id="alt-items-list"></div>
+    </section>
 
     <div class="restart">
       <button class="btn-ghost" id="btn-restart" data-en="Take the quiz again" data-fi="Tee kysely uudelleen"></button>
@@ -469,7 +496,7 @@ async function loadCatalog(){
   SENSORY_PROFILES = profiles;
   PRODUCTS = products.map(p => ({
     id: p.id, name: p.name, roast_level: p.roast_level, price_per_kg_eur: Number(p.price_per_kg_eur),
-    availability: p.availability, is_verified: p.is_verified, sensory: p.sensory,
+    availability: p.availability, is_verified: p.is_verified, sensory: p.sensory, store_label: p.store_label,
   }));
   const fi = locales.find(l=>l.locale==='FI');
   LOCALE = {
@@ -543,13 +570,13 @@ function selectBase(pool,target,answers){
     else { fallbackApplied=true; fallbackReason='family'; }
   }
   const PRICE_W=0.5;
-  let best=null,bestD=Infinity;
-  for(const p of candidates){
+  const scored = candidates.map(p=>{
     const dA=p.sensory.acidity-target.acidity, dB=p.sensory.bitterness-target.bitterness, dP=normalizePrice(p.price_per_kg_eur)-target.priceWillingness;
-    const d=Math.sqrt(dA*dA+dB*dB+PRICE_W*dP*dP);
-    if(d<bestD){bestD=d;best=p;}
-  }
-  return {base:best,fallbackApplied,fallbackReason};
+    return {p, d: Math.sqrt(dA*dA+dB*dB+PRICE_W*dP*dP)};
+  }).sort((a,b)=>a.d-b.d);
+  const best = scored[0] ? scored[0].p : null;
+  const runnerUp = scored[1] ? scored[1].p : null;
+  return {base:best, runnerUp, fallbackApplied,fallbackReason};
 }
 function selectModifiers(pool,base,target,w,max=2){
   const mods=[]; const used=new Set([base.id]); const threshold=w.bitterness_nonlinear_threshold;
@@ -598,12 +625,7 @@ function solvePercentages(items,target,w,threshold){
 }
 function robustaShare(items,pcts){ return items.reduce((sum,it,i)=> sum + (it.sensory.bean_type.startsWith('robusta') ? pcts[i] : 0), 0); }
 
-function recommendBlend(answers){
-  const pool = answers.caffeine==='decaf_only'
-    ? PRODUCTS.filter(p=>p.sensory.is_decaf)
-    : PRODUCTS.filter(p=>p.availability==='available'&&p.is_verified);
-  const target = buildTargetVector(answers);
-  const {base,fallbackApplied,fallbackReason} = selectBase(pool,target,answers);
+function buildRecipeFromBase(base, pool, target, answers){
   const modifiers = selectModifiers(pool,base,target,LOCALE);
   const items=[base,...modifiers];
   let pcts = solvePercentages(items,target,LOCALE,LOCALE.bitterness_nonlinear_threshold);
@@ -620,11 +642,35 @@ function recommendBlend(answers){
   const matchScore = clamp(100-finalScore*10,0,100);
   const roles=['base','modifier1','modifier2'];
   return {
-    target,
     items: items.map((it,i)=>({role:roles[i], product:it, percentage:pcts[i]})),
     matchScore: Math.round(matchScore*10)/10,
-    fallbackApplied, fallbackReason, cremaBoost,
+    cremaBoost,
     robustaShare: robustaShare(items,pcts),
+  };
+}
+
+function recommendBlend(answers){
+  const pool = answers.caffeine==='decaf_only'
+    ? PRODUCTS.filter(p=>p.sensory.is_decaf)
+    : PRODUCTS.filter(p=>p.availability==='available'&&p.is_verified);
+  const target = buildTargetVector(answers);
+  const {base,runnerUp,fallbackApplied,fallbackReason} = selectBase(pool,target,answers);
+  const primary = buildRecipeFromBase(base, pool, target, answers);
+
+  // Alternate blend (section: "چرا این ترکیب" feature) — a genuinely
+  // different suggestion built around the runner-up base bean, reusing
+  // the exact same formulation pipeline. Only offered if a runner-up
+  // exists (i.e. more than one candidate was available).
+  let alternate = null;
+  if(runnerUp){
+    alternate = buildRecipeFromBase(runnerUp, pool, target, answers);
+  }
+
+  return {
+    target,
+    ...primary,
+    fallbackApplied, fallbackReason,
+    alternate,
   };
 }
 
@@ -847,13 +893,42 @@ function showResult(){
     row.innerHTML = `
       <div class="left">
         <div class="name">${it.product.name}</div>
-        <div class="tags">${roast} · ${it.product.price_per_kg_eur.toFixed(1)} €/kg</div>
+        <div class="tags">${roast} · ${it.product.price_per_kg_eur.toFixed(1)} €/kg · <span class="store-tag">${it.product.store_label||'—'}</span></div>
         <div class="why">${why}</div>
       </div>
       <div class="pct-col mono">${it.percentage}%</div>
     `;
     itemsEl.appendChild(row);
   });
+
+  renderAlternate(result.alternate);
+}
+
+function renderAlternate(alt){
+  const section = document.getElementById('alternate-section');
+  if(!alt){ section.style.display='none'; return; }
+  section.style.display='block';
+
+  const bar = document.getElementById('alt-blend-bar');
+  bar.innerHTML='';
+  alt.items.forEach(it=>{
+    const seg=document.createElement('div');
+    seg.className='blend-seg alt-seg '+SEG_CLASS[it.role];
+    seg.style.width = it.percentage+'%';
+    seg.innerHTML = `<span class="pct mono">${it.percentage}%</span>`;
+    bar.appendChild(seg);
+  });
+
+  const listEl = document.getElementById('alt-items-list');
+  listEl.innerHTML='';
+  alt.items.forEach(it=>{
+    const row=document.createElement('div');
+    row.className='alt-item';
+    row.innerHTML = `<span class="alt-item-name">${it.product.name}</span><span class="alt-item-store">${it.product.store_label||'—'}</span><span class="alt-item-pct mono">${it.percentage}%</span>`;
+    listEl.appendChild(row);
+  });
+
+  document.getElementById('alt-match-score').textContent = alt.matchScore+'%';
 }
 
 document.querySelectorAll('[data-setlang]').forEach(btn=>{
