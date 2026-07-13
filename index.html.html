@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coffee Identity — Blend Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F1EEE4;
+    --paper-raised:#F8F6EF;
+    --ink:#2B2A24;
+    --ink-soft:#5B5748;
+    --spruce:#2F3E37;
+    --spruce-light:#4C6157;
+    --lingon:#8B2A34;
+    --lingon-soft:#B85C64;
+    --oat:#C9A96B;
+    --oat-soft:#E4D6B4;
+    --line:#CFC6AE;
+    --line-soft:#DFD8C4;
+    --focus:#1E5C7A;
+    --radius:2px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', -apple-system, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  .display{font-family:'Space Grotesk', sans-serif;}
+  .mono{font-family:'IBM Plex Mono', monospace;}
+
+  a,button{font-family:inherit;}
+  button{cursor:pointer;}
+  :focus-visible{outline:3px solid var(--focus); outline-offset:2px;}
+
+  .shell{max-width:720px; margin:0 auto; padding:0 20px 80px;}
+
+  /* ---- Header ---- */
+  header.top{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:28px 0 20px; border-bottom:1px solid var(--line);
+    margin-bottom:8px;
+  }
+  .wordmark{display:flex; flex-direction:column; gap:2px;}
+  .wordmark .name{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:19px; letter-spacing:-0.01em;}
+  .wordmark .sub{font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft);}
+  .lang-toggle{display:flex; border:1px solid var(--ink); border-radius:999px; overflow:hidden;}
+  .lang-toggle button{
+    background:transparent; border:none; padding:7px 14px; font-size:12.5px;
+    font-family:'IBM Plex Mono',monospace; letter-spacing:.04em; color:var(--ink);
+  }
+  .lang-toggle button.active{background:var(--ink); color:var(--paper);}
+
+  /* ---- Header auth area ---- */
+  .header-right{display:flex; align-items:center; gap:10px;}
+  .auth-status{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-soft);}
+  .auth-status #auth-status-name{font-weight:600; color:var(--ink);}
+
+  /* ---- Auth screen (mandatory gate, shown before the quiz) ---- */
+  .auth-card{max-width:380px; margin:40px auto 0;}
+  .auth-tabs{display:flex; gap:6px; margin-bottom:22px; border-bottom:1px solid var(--line);}
+  .auth-tab{
+    flex:1; background:none; border:none; padding:10px 4px; font-size:14px; font-weight:600;
+    color:var(--ink-soft); border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .auth-tab.active{color:var(--ink); border-bottom-color:var(--lingon);}
+  .input-label{display:block; font-size:12px; color:var(--ink-soft); margin:14px 0 5px;}
+  .input-field{
+    width:100%; padding:10px 12px; font-size:14.5px; border:1px solid var(--line);
+    background:var(--paper); color:var(--ink); font-family:inherit;
+  }
+  .input-field:focus{border-color:var(--spruce);}
+  .auth-error{color:var(--lingon); font-size:12.5px; margin-top:10px; min-height:0;}
+  .auth-submit{width:100%; margin-top:20px;}
+  .auth-submit:disabled{opacity:.5;}
+
+  /* ---- Progress (coffee bean, green -> roasted, like the legacy app) ---- */
+  .progress-row{display:flex; align-items:center; gap:14px; margin:28px 0 6px;}
+  .progress-bean{display:flex; align-items:center; justify-content:center; filter:drop-shadow(0 2px 5px rgba(43,42,36,.18));}
+  .progress-bean svg ellipse{transition:fill .3s ease;}
+  .progress-bean.bean-pulse{animation:beanPulse .4s ease;}
+  @keyframes beanPulse{
+    0%{transform:scale(1);} 40%{transform:scale(1.18);} 100%{transform:scale(1);}
+  }
+  .progress-label{font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft); white-space:nowrap;}
+
+  /* ---- Question card ---- */
+  .card{
+    background:var(--paper-raised); border:1px solid var(--line);
+    padding:34px 30px 30px; margin-top:22px;
+  }
+  .eyebrow{font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--lingon); margin-bottom:14px;}
+  h1.question{
+    font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:27px; line-height:1.28;
+    margin:0 0 26px; letter-spacing:-0.01em; max-width:22ch;
+  }
+  .options{display:grid; grid-template-columns:repeat(var(--cols,1), 1fr); gap:10px;}
+  .opt{
+    display:flex; align-items:center; gap:14px;
+    text-align:left; background:var(--paper); border:1px solid var(--line);
+    padding:14px 16px; font-size:15px; color:var(--ink); transition:border-color .15s, background .15s;
+  }
+  .opt:hover{border-color:var(--spruce); background:var(--oat-soft);}
+  .opt .icon{
+    flex-shrink:0; width:34px; height:34px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--oat-soft); color:var(--spruce);
+  }
+  .opt .icon svg{width:19px; height:19px;}
+  .opt .text{min-width:0;}
+  .opt .label{font-weight:500; line-height:1.3;}
+  .opt .desc{font-size:12px; color:var(--ink-soft); margin-top:2px; line-height:1.3;}
+  .opt.selected{border-color:var(--spruce); background:var(--spruce); color:var(--paper);}
+  .opt.selected .icon{background:var(--lingon); color:var(--paper);}
+  .opt.selected .desc{color:var(--oat-soft);}
+
+  .nav-row{display:flex; justify-content:flex-start; align-items:center; margin-top:26px;}
+  .btn-ghost{background:transparent; border:1px solid var(--line); padding:11px 20px; font-size:13.5px; color:var(--ink-soft); border-radius:999px;}
+  .btn-ghost:disabled{opacity:.35; cursor:default;}
+  .btn-primary{background:var(--spruce); color:var(--paper); border:1px solid var(--spruce); padding:11px 26px; font-size:13.5px; border-radius:999px; font-weight:600;}
+  .btn-primary:disabled{opacity:.35; cursor:default;}
+
+  /* ---- Results ---- */
+  .result-eyebrow{font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--lingon); margin:34px 0 8px;}
+  h1.result-title{font-family:'Space Grotesk',sans-serif; font-size:29px; font-weight:700; margin:0 0 6px; letter-spacing:-0.01em;}
+  .result-sub{color:var(--ink-soft); font-size:15px; line-height:1.55; max-width:52ch; margin:0 0 30px;}
+
+  .blend-bar{display:flex; height:64px; width:100%; border:1px solid var(--ink); overflow:hidden;}
+  .blend-seg{display:flex; flex-direction:column; justify-content:center; padding:0 14px; min-width:0; transition:width .6s cubic-bezier(.22,.9,.3,1);}
+  .blend-seg .pct{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:18px; line-height:1;}
+  .blend-seg .role{font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; opacity:.75; margin-top:3px;}
+  .seg-base{background:var(--spruce); color:var(--paper);}
+  .seg-modifier1{background:var(--lingon); color:var(--paper);}
+  .seg-modifier2{background:var(--oat); color:var(--ink);}
+
+  .match-row{display:flex; align-items:baseline; gap:10px; margin:16px 0 30px;}
+  .match-row .num{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:22px;}
+  .match-row .lbl{font-size:13px; color:var(--ink-soft);}
+
+  .items{display:flex; flex-direction:column; gap:1px; background:var(--line); border:1px solid var(--line); margin-bottom:26px;}
+  .item{background:var(--paper-raised); padding:18px 20px; display:flex; justify-content:space-between; gap:16px; align-items:flex-start;}
+  .item .left{flex:1; min-width:0;}
+  .item .name{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:16px; margin-bottom:4px;}
+  .item .tags{font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-soft);}
+  .store-tag{color:var(--spruce); font-weight:600;}
+  .item .why{font-size:13px; color:var(--ink-soft); margin-top:8px; line-height:1.5;}
+  .item .pct-col{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:20px; flex-shrink:0;}
+
+  .note{
+    border:1px dashed var(--lingon-soft); background:#F7EEE9; padding:14px 16px;
+    font-size:13px; color:var(--ink); line-height:1.55; margin-bottom:26px;
+  }
+  .note b{color:var(--lingon);}
+
+  /* ---- Alternate blend ---- */
+  .alt-divider{border-top:1px dashed var(--line); margin:34px 0 26px;}
+  .alt-sub{font-size:13px; color:var(--ink-soft); margin:0 0 16px;}
+  .alt-bar{height:40px; opacity:.92;}
+  .alt-bar .blend-seg .pct{font-size:13px;}
+  .alt-items{display:flex; flex-direction:column; gap:8px; margin-top:18px;}
+  .alt-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    font-size:13px; padding:10px 14px; background:var(--paper-raised); border:1px solid var(--line);
+  }
+  .alt-item-name{font-weight:600; flex:1;}
+  .alt-item-store{color:var(--spruce); font-family:'IBM Plex Mono',monospace; font-size:11px;}
+  .alt-item-pct{font-weight:600;}
+
+  .restart{display:flex; justify-content:center; margin-top:12px;}
+
+  footer.foot{margin-top:60px; padding-top:20px; border-top:1px solid var(--line); font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); letter-spacing:.03em;}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important; animation:none !important;}
+  }
+  @media (max-width:520px){
+    h1.question{font-size:22px;}
+    .card{padding:26px 20px 22px;}
+    .blend-bar{flex-direction:column; height:auto;}
+    .blend-seg{width:100% !important; padding:12px 16px;}
+    .item{flex-direction:column;}
+    .item .pct-col{align-self:flex-end; margin-top:-28px;}
+  }
+</style>
+</head>
+<body data-lang="en">
+<div class="shell">
+
+  <header class="top">
+    <div class="wordmark">
+      <div class="name">Coffee Identity</div>
+      <div class="sub">Blend Intelligence Engine</div>
+    </div>
+    <div class="header-right">
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" class="active" data-setlang="en">EN</button>
+        <button type="button" data-setlang="fi">FI</button>
+      </div>
+      <div class="auth-status" id="auth-status" style="display:none;">
+        <span id="auth-status-name"></span>
+        <button class="btn-ghost" id="btn-logout" data-en="Log out" data-fi="Kirjaudu ulos"></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== AUTH SCREEN (mandatory gate) ===================== -->
+  <section id="auth-screen">
+    <div class="card auth-card">
+      <div class="eyebrow" data-en="Welcome" data-fi="Tervetuloa"></div>
+      <h1 class="question" data-en="Sign in to find your blend" data-fi="Kirjaudu löytääksesi sekoituksesi" style="margin-bottom:22px;"></h1>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-login" data-en="Log in" data-fi="Kirjaudu"></button>
+        <button class="auth-tab" id="tab-register" data-en="Create account" data-fi="Luo tili"></button>
+      </div>
+
+      <div id="login-panel">
+        <label class="input-label" data-en="Email" data-fi="Sähköposti"></label>
+        <input class="input-field" id="login-email" type="email" autocomplete="email" dir="ltr">
+        <label class="input-label" data-en="Password" data-fi="Salasana"></label>
+        <input class="input-field" id="login-password" type="password" autocomplete="current-password" dir="ltr">
+        <div class="auth-error" id="login-error"></div>
+        <button class="btn-primary auth-submit" id="btn-login" data-en="Log in" data-fi="Kirjaudu"></button>
+      </div>
+
+      <div id="register-panel" style="display:none;">
+        <label class="input-label" data-en="Your name" data-fi="Nimesi"></label>
+        <input class="input-field" id="reg-name" type="text" autocomplete="name">
+        <label class="input-label" data-en="Email" data-fi="Sähköposti"></label>
+        <input class="input-field" id="reg-email" type="email" autocomplete="email" dir="ltr">
+        <label class="input-label" data-en="Password (min. 6 characters)" data-fi="Salasana (väh. 6 merkkiä)"></label>
+        <input class="input-field" id="reg-password" type="password" autocomplete="new-password" dir="ltr">
+        <div class="auth-error" id="reg-error"></div>
+        <button class="btn-primary auth-submit" id="btn-register" data-en="Create account" data-fi="Luo tili"></button>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===================== LOADING SCREEN ===================== -->
+  <section id="loading-screen" style="display:none;">
+    <div class="card" style="text-align:center; padding:60px 30px;">
+      <div class="progress-bean" style="margin:0 auto 18px;">
+        <svg viewBox="0 0 60 40" width="46" height="31" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="30" cy="20" rx="26" ry="17" fill="#7CB342"/>
+          <path d="M30 4 C22 10, 22 30, 30 36" stroke="rgba(0,0,0,0.28)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div data-en="Loading the catalog…" data-fi="Ladataan valikoimaa…" style="color:var(--ink-soft); font-size:14px;"></div>
+      <div id="loading-error" class="note" style="display:none; margin-top:18px; text-align:left;"></div>
+    </div>
+  </section>
+
+  <!-- ===================== QUIZ SCREEN ===================== -->
+  <section id="quiz-screen" style="display:none;">
+    <div class="progress-row">
+      <div class="progress-bean" id="progress-bean">
+        <svg viewBox="0 0 60 40" width="46" height="31" xmlns="http://www.w3.org/2000/svg">
+          <ellipse id="bean-ellipse" cx="30" cy="20" rx="26" ry="17" fill="#7CB342"/>
+          <path d="M30 4 C22 10, 22 30, 30 36" stroke="rgba(0,0,0,0.28)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="progress-label"><span data-en="Question" data-fi="Kysymys"></span> <span id="q-index">1</span> / 7</div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow" data-en="Pick one" data-fi="Valitse yksi"></div>
+      <h1 class="question" id="question-text"></h1>
+      <div class="options" id="options-list"></div>
+    </div>
+
+    <div class="nav-row">
+      <button class="btn-ghost" id="btn-back" data-en="Back" data-fi="Takaisin"></button>
+    </div>
+  </section>
+
+  <!-- ===================== RESULT SCREEN ===================== -->
+  <section id="result-screen" style="display:none;">
+    <div class="result-eyebrow" data-en="Your blend" data-fi="Sinun sekoituksesi"></div>
+    <h1 class="result-title" id="result-title"></h1>
+    <p class="result-sub" id="result-sub"></p>
+
+    <div class="blend-bar" id="blend-bar"></div>
+
+    <div class="match-row">
+      <span class="num mono" id="match-score"></span>
+      <span class="lbl" data-en="taste match" data-fi="makuvastaavuus"></span>
+    </div>
+
+    <div id="fallback-note" class="note" style="display:none;"></div>
+
+    <div class="items" id="items-list"></div>
+
+    <section id="alternate-section" style="display:none;">
+      <div class="alt-divider"></div>
+      <div class="result-eyebrow" data-en="Or, try this instead" data-fi="Tai kokeile tätä"></div>
+      <p class="alt-sub" data-en="A different base bean, for a different mood." data-fi="Eri perustapapu, erilaiseen fiilikseen."></p>
+      <div class="blend-bar alt-bar" id="alt-blend-bar"></div>
+      <div class="match-row">
+        <span class="num mono" id="alt-match-score" style="font-size:16px;"></span>
+        <span class="lbl" data-en="taste match" data-fi="makuvastaavuus"></span>
+      </div>
+      <div class="alt-items" id="alt-items-list"></div>
+    </section>
+
+    <div class="restart">
+      <button class="btn-ghost" id="btn-restart" data-en="Take the quiz again" data-fi="Tee kysely uudelleen"></button>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span data-en="Formulated locally in your browser · no data leaves this device" data-fi="Muodostettu paikallisesti selaimessasi · tieto ei poistu tältä laitteelta"></span>
+  </footer>
+</div>
+
+<script>
+/* =====================================================================
+   SEED DATA — mirrors coffee-blend-seed-v1.sql (15 profiles + products)
+   ===================================================================== */
+/* =====================================================================
+   SUPABASE CONNECTION — live project, replaces inline seed data
+   ===================================================================== */
+const SUPABASE_URL = 'https://ibmiprhmjiscvjjakkjz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_GHXDp47mM8HKeF8iDIy_eg_oAGpefDk';
+
+async function sb(path, opts={}){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers:{
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      ...(opts.headers||{}),
+    },
+  });
+  if(!res.ok){ throw new Error(`Supabase ${path} failed: ${res.status} ${await res.text()}`); }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+let SENSORY_PROFILES = [];
+let PRODUCTS = [];
+let LOCALE = null;
+const ROAST_LABEL = {light:{en:'Light roast',fi:'Vaalea paahto'}, medium_light:{en:'Medium-light roast',fi:'Vaaleahko paahto'}, medium:{en:'Medium roast',fi:'Keskitason paahto'}, medium_dark:{en:'Medium-dark roast',fi:'Tummahko paahto'}, dark:{en:'Dark roast',fi:'Tumma paahto'}};
+
+/* =====================================================================
+   AUTH — name + email + password, same pattern as the legacy app:
+   SHA-256 client-side hash for register, server-side RPC check for
+   login (blend_login_check never returns password_hash).
+   ===================================================================== */
+let currentUser = null; // {id, name, email, locale} | null
+
+async function sha256Hex(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function setCurrentUser(user){
+  currentUser = user;
+  if(user){ localStorage.setItem('blend_user', JSON.stringify(user)); }
+  else{ localStorage.removeItem('blend_user'); }
+  renderAuthStatus();
+}
+
+function renderAuthStatus(){
+  const statusEl = document.getElementById('auth-status');
+  if(currentUser){
+    statusEl.style.display='flex';
+    document.getElementById('auth-status-name').textContent = currentUser.name || currentUser.email;
+  } else {
+    statusEl.style.display='none';
+  }
+}
+
+function switchAuthTab(tab){
+  document.getElementById('tab-login').classList.toggle('active', tab==='login');
+  document.getElementById('tab-register').classList.toggle('active', tab==='register');
+  document.getElementById('login-panel').style.display = tab==='login' ? 'block' : 'none';
+  document.getElementById('register-panel').style.display = tab==='register' ? 'block' : 'none';
+}
+
+// Called after a successful login/register: leaves the mandatory auth
+// screen and proceeds to load the catalog, then the quiz.
+async function enterApp(){
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('loading-screen').style.display='block';
+  try{
+    await loadCatalog();
+    document.getElementById('loading-screen').style.display='none';
+    document.getElementById('quiz-screen').style.display='block';
+    renderQuestion();
+  } catch(e){
+    console.error('Failed to load catalog from Supabase:', e);
+    const err = document.getElementById('loading-error');
+    err.style.display='block';
+    err.innerHTML = lang()==='fi'
+      ? '<b>Virhe:</b> Valikoimaa ei voitu ladata. Tarkista internetyhteytesi ja lataa sivu uudelleen.'
+      : "<b>Error:</b> Couldn't load the catalog. Check your connection and reload the page.";
+  }
+}
+
+async function doRegister(){
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim().toLowerCase();
+  const password = document.getElementById('reg-password').value;
+  const errEl = document.getElementById('reg-error');
+  errEl.textContent='';
+  if(!name || !email || password.length < 6){
+    errEl.textContent = lang()==='fi' ? 'Täytä kaikki kentät (salasana väh. 6 merkkiä).' : 'Fill in all fields (password min. 6 characters).';
+    return;
+  }
+  const btn = document.getElementById('btn-register');
+  btn.disabled = true;
+  try{
+    const password_hash = await sha256Hex(password);
+    const [user] = await sb('blend_users?select=id,name,email,locale,created_at', {
+      method:'POST', headers:{Prefer:'return=representation'},
+      body: JSON.stringify([{ name, email, password_hash, locale:'FI' }]),
+    });
+    setCurrentUser(user);
+    await enterApp();
+  } catch(e){
+    errEl.textContent = /duplicate|unique|23505/i.test(e.message)
+      ? (lang()==='fi' ? 'Tämä sähköposti on jo käytössä.' : 'This email is already registered.')
+      : (lang()==='fi' ? 'Tilin luonti epäonnistui. Yritä uudelleen.' : 'Could not create account. Please try again.');
+    console.error(e);
+  } finally { btn.disabled=false; }
+}
+
+async function doLogin(){
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent='';
+  if(!email || !password){
+    errEl.textContent = lang()==='fi' ? 'Täytä sähköposti ja salasana.' : 'Enter email and password.';
+    return;
+  }
+  const btn = document.getElementById('btn-login');
+  btn.disabled = true;
+  try{
+    const rows = await sb('rpc/blend_login_check', {
+      method:'POST', body: JSON.stringify({ p_email: email, p_password: password }),
+    });
+    if(!rows || rows.length===0){
+      errEl.textContent = lang()==='fi' ? 'Väärä sähköposti tai salasana.' : 'Invalid email or password.';
+    } else {
+      setCurrentUser(rows[0]);
+      await enterApp();
+    }
+  } catch(e){
+    errEl.textContent = lang()==='fi' ? 'Kirjautuminen epäonnistui.' : 'Login failed. Please try again.';
+    console.error(e);
+  } finally { btn.disabled=false; }
+}
+
+function doLogout(){
+  setCurrentUser(null);
+  // reset quiz state and return to the mandatory auth gate
+  current = 0;
+  Object.keys(answers).forEach(k=>delete answers[k]);
+  resultSaved = false;
+  document.getElementById('result-screen').style.display='none';
+  document.getElementById('quiz-screen').style.display='none';
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('auth-screen').style.display='block';
+}
+
+document.getElementById('tab-login').addEventListener('click', ()=>switchAuthTab('login'));
+document.getElementById('tab-register').addEventListener('click', ()=>switchAuthTab('register'));
+document.getElementById('btn-login').addEventListener('click', doLogin);
+document.getElementById('btn-register').addEventListener('click', doRegister);
+document.getElementById('btn-logout').addEventListener('click', doLogout);
+
+// restore session from a previous visit (best-effort; password is never stored)
+try{
+  const saved = localStorage.getItem('blend_user');
+  if(saved) currentUser = JSON.parse(saved);
+} catch(e){ /* ignore corrupt storage */ }
+renderAuthStatus();
+
+async function loadCatalog(){
+  const [profiles, products, locales] = await Promise.all([
+    sb('blend_sensory_profiles?select=*'),
+    sb('blend_market_products?select=*,sensory:blend_sensory_profiles(*)&is_verified=eq.true&availability=eq.available&locale=eq.FI'),
+    sb('blend_locale_profiles?select=*'),
+  ]);
+  SENSORY_PROFILES = profiles;
+  PRODUCTS = products.map(p => ({
+    id: p.id, name: p.name, roast_level: p.roast_level, price_per_kg_eur: Number(p.price_per_kg_eur),
+    availability: p.availability, is_verified: p.is_verified, sensory: p.sensory, store_label: p.store_label,
+  }));
+  const fi = locales.find(l=>l.locale==='FI');
+  LOCALE = {
+    default_acidity_target: Number(fi.default_acidity_target),
+    weight_caffeine: Number(fi.weight_caffeine), weight_body: Number(fi.weight_body),
+    weight_bitterness: Number(fi.weight_bitterness), weight_crema: Number(fi.weight_crema),
+    weight_price: Number(fi.weight_price), bitterness_nonlinear_threshold: fi.bitterness_nonlinear_threshold,
+  };
+}
+
+// Persists a completed quiz + its recommended recipe (fire-and-forget:
+// never blocks or breaks the UI if it fails — the quiz already works
+// standalone, this is additive telemetry per design doc section 13.4 KPIs).
+async function saveResultToSupabase(answersObj, result){
+  try{
+    const [session] = await sb('blend_quiz_sessions', {
+      method:'POST', headers:{Prefer:'return=representation'},
+      body: JSON.stringify([{ user_id: currentUser ? currentUser.id : null, locale:'FI', answers: answersObj, target_vector: result.target }]),
+    });
+    const [recipe] = await sb('blend_recipes', {
+      method:'POST', headers:{Prefer:'return=representation'},
+      body: JSON.stringify([{ quiz_session_id: session.id, user_id: currentUser ? currentUser.id : null, match_score: result.matchScore, fallback_applied: result.fallbackApplied, fallback_reason: result.fallbackReason||null }]),
+    });
+    await sb('blend_recipe_items', {
+      method:'POST',
+      body: JSON.stringify(result.items.map(it => ({ recipe_id: recipe.id, market_product_id: it.product.id, role: it.role, percentage: it.percentage }))),
+    });
+  } catch(e){ console.error('Could not save result to Supabase (non-blocking):', e); }
+}
+
+/* =====================================================================
+   ENGINE — ported from blend-engine.js (design doc section 7, 3.1, 4.1)
+   ===================================================================== */
+const FLAVOR_GROUPS = { fruity_floral:['flavor_floral','flavor_berry_fruity','flavor_citrus'], chocolate_nutty:['flavor_chocolate','flavor_nutty'], spicy_earthy:['flavor_spice','flavor_earthy'] };
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function normalizeCaffeine(mg){return clamp((mg/250)*10,0,10);}
+function normalizePrice(p){return clamp(((p-10)/25)*10,0,10);}
+function dominantFlavorGroup(s){
+  const sums = Object.entries(FLAVOR_GROUPS).map(([g,axes])=>[g, axes.reduce((sum,a)=>sum+s[a],0)]);
+  sums.sort((a,b)=>b[1]-a[1]);
+  return sums[0][0];
+}
+function buildTargetVector(a){
+  const bodyMap={light:2,medium:5,heavy:8}, bitMap={fresh_sweet:2,both:5,toasty_bold:8}, acidMap={vibrant_fruity:8,balanced:5,smooth_no_tartness:2}, cafMap={full:9,balanced:6,half_caf:3,decaf_only:0}, brewDelta={espresso:1.5,french_press:1,pour_over:0,cold_brew:0,no_preference:0};
+  let body = (a.body==='no_preference'||!a.body) ? 5 : bodyMap[a.body];
+  body = clamp(body + (brewDelta[a.brew_method]||0),0,10);
+  const acidity = a.acidity ? acidMap[a.acidity] : LOCALE.default_acidity_target;
+  const bitterness = bitMap[a.bitterness] ?? 5;
+  const caffeine = cafMap[a.caffeine] ?? 6;
+  const crema = a.brew_method==='espresso' ? 8 : 3;
+  const priceMap={economical:2,balanced:5,premium:8};
+  return {body,acidity,bitterness,caffeine,crema,priceWillingness:priceMap[a.budget]??5};
+}
+function bitternessContribution(v,t){ return v<t ? v : t+Math.pow(v-t,2); }
+function weightedResidual(p,target,w,threshold){
+  const s=p.sensory;
+  const bodyD=Math.abs(s.body-target.body);
+  const bitLin=Math.abs(s.bitterness-target.bitterness);
+  const bitNon=Math.abs(bitternessContribution(s.bitterness,threshold)-bitternessContribution(target.bitterness,threshold));
+  const bitD = s.bitterness>=threshold ? bitNon : bitLin;
+  const cafD=Math.abs(normalizeCaffeine(s.caffeine_mg_per_100g)-target.caffeine);
+  const cremaD=Math.abs(s.crema_potential-target.crema);
+  const priceD=Math.abs(normalizePrice(p.price_per_kg_eur)-target.priceWillingness);
+  return w.weight_body*bodyD + w.weight_bitterness*bitD + w.weight_caffeine*cafD + w.weight_crema*cremaD + w.weight_price*priceD;
+}
+function selectBase(pool,target,answers){
+  let candidates=pool, fallbackApplied=false, fallbackReason=null;
+  if(answers.flavor_family && answers.flavor_family!=='balanced'){
+    const inFam = pool.filter(p=>dominantFlavorGroup(p.sensory)===answers.flavor_family);
+    if(inFam.length>0){ candidates=inFam; }
+    else { fallbackApplied=true; fallbackReason='family'; }
+  }
+  const PRICE_W=0.5;
+  const scored = candidates.map(p=>{
+    const dA=p.sensory.acidity-target.acidity, dB=p.sensory.bitterness-target.bitterness, dP=normalizePrice(p.price_per_kg_eur)-target.priceWillingness;
+    return {p, d: Math.sqrt(dA*dA+dB*dB+PRICE_W*dP*dP)};
+  }).sort((a,b)=>a.d-b.d);
+  const best = scored[0] ? scored[0].p : null;
+  const runnerUp = scored[1] ? scored[1].p : null;
+  return {base:best, runnerUp, fallbackApplied,fallbackReason};
+}
+function selectModifiers(pool,base,target,w,max=2){
+  const mods=[]; const used=new Set([base.id]); const threshold=w.bitterness_nonlinear_threshold;
+  for(let i=0;i<max;i++){
+    const currentResidual = weightedResidual(base,target,w,threshold);
+    if(currentResidual<1.5 && i>0) break;
+    let best=null,bestScore=-Infinity;
+    for(const p of pool){
+      if(used.has(p.id)) continue;
+      const before=weightedResidual(base,target,w,threshold), after=weightedResidual(p,target,w,threshold);
+      const improvement = before-after;
+      if(improvement>bestScore){bestScore=improvement;best=p;}
+    }
+    if(!best||bestScore<=0) break;
+    mods.push(best); used.add(best.id);
+  }
+  return mods;
+}
+function combinedVector(items,pcts){
+  const v={body:0,bitterness:0,caffeine:0,crema:0,price:0};
+  items.forEach((it,i)=>{ const p=pcts[i]/100;
+    v.body+=p*it.sensory.body; v.bitterness+=p*it.sensory.bitterness;
+    v.caffeine+=p*normalizeCaffeine(it.sensory.caffeine_mg_per_100g);
+    v.crema+=p*it.sensory.crema_potential; v.price+=p*normalizePrice(it.price_per_kg_eur);
+  });
+  return v;
+}
+function scoreCombo(items,pcts,target,w,threshold){
+  const v=combinedVector(items,pcts);
+  const bitD=Math.abs(bitternessContribution(v.bitterness,threshold)-bitternessContribution(target.bitterness,threshold));
+  return w.weight_body*Math.abs(v.body-target.body)+w.weight_bitterness*bitD+w.weight_caffeine*Math.abs(v.caffeine-target.caffeine)+w.weight_crema*Math.abs(v.crema-target.crema)+w.weight_price*Math.abs(v.price-target.priceWillingness);
+}
+function solvePercentages(items,target,w,threshold){
+  if(items.length===1) return [100];
+  const step=5; let best=null,bestScore=Infinity;
+  if(items.length===2){
+    for(let b=55;b<=95;b+=step){ const pcts=[b,100-b]; const s=scoreCombo(items,pcts,target,w,threshold); if(s<bestScore){bestScore=s;best=pcts;} }
+  } else {
+    for(let b=40;b<=90;b+=step){ const rem=100-b;
+      for(let m1=5;m1<=rem-5;m1+=step){ const m2=rem-m1; if(m2<5||m2>45||m1>45) continue;
+        const pcts=[b,m1,m2]; const s=scoreCombo(items,pcts,target,w,threshold); if(s<bestScore){bestScore=s;best=pcts;}
+      }
+    }
+  }
+  return best;
+}
+function robustaShare(items,pcts){ return items.reduce((sum,it,i)=> sum + (it.sensory.bean_type.startsWith('robusta') ? pcts[i] : 0), 0); }
+
+function buildRecipeFromBase(base, pool, target, answers){
+  const modifiers = selectModifiers(pool,base,target,LOCALE);
+  const items=[base,...modifiers];
+  let pcts = solvePercentages(items,target,LOCALE,LOCALE.bitterness_nonlinear_threshold);
+  let cremaBoost=false;
+  if(answers.brew_method==='espresso'){
+    const rShare=robustaShare(items,pcts), v=combinedVector(items,pcts);
+    if(rShare<15 && v.crema<target.crema){
+      const boosted={...LOCALE, weight_crema:LOCALE.weight_crema+0.10};
+      pcts = solvePercentages(items,target,boosted,LOCALE.bitterness_nonlinear_threshold);
+      cremaBoost=true;
+    }
+  }
+  const finalScore = scoreCombo(items,pcts,target,LOCALE,LOCALE.bitterness_nonlinear_threshold);
+  const matchScore = clamp(100-finalScore*10,0,100);
+  const roles=['base','modifier1','modifier2'];
+  return {
+    items: items.map((it,i)=>({role:roles[i], product:it, percentage:pcts[i]})),
+    matchScore: Math.round(matchScore*10)/10,
+    cremaBoost,
+    robustaShare: robustaShare(items,pcts),
+  };
+}
+
+function recommendBlend(answers){
+  const pool = answers.caffeine==='decaf_only'
+    ? PRODUCTS.filter(p=>p.sensory.is_decaf)
+    : PRODUCTS.filter(p=>p.availability==='available'&&p.is_verified);
+  const target = buildTargetVector(answers);
+  const {base,runnerUp,fallbackApplied,fallbackReason} = selectBase(pool,target,answers);
+  const primary = buildRecipeFromBase(base, pool, target, answers);
+
+  // Alternate blend (section: "چرا این ترکیب" feature) — a genuinely
+  // different suggestion built around the runner-up base bean, reusing
+  // the exact same formulation pipeline. Only offered if a runner-up
+  // exists (i.e. more than one candidate was available).
+  let alternate = null;
+  if(runnerUp){
+    alternate = buildRecipeFromBase(runnerUp, pool, target, answers);
+  }
+
+  return {
+    target,
+    ...primary,
+    fallbackApplied, fallbackReason,
+    alternate,
+  };
+}
+
+/* =====================================================================
+   QUIZ CONTENT
+   ===================================================================== */
+const ICON = {
+  espresso: '<circle cx="12" cy="12" r="9"/><path d="M8 9c0 6 2 9 4 9s4-3 4-9"/><path d="M8 9h8"/>',
+  pour_over: '<path d="M5 6h14l-5.2 9.2v4.3h-3.6v-4.3L5 6z"/><line x1="5" y1="6" x2="19" y2="6"/>',
+  french_press: '<rect x="7" y="8" width="10" height="12" rx="1"/><line x1="12" y1="3" x2="12" y2="8"/><line x1="9" y1="3" x2="15" y2="3"/><line x1="7" y1="13" x2="17" y2="13"/>',
+  cold_brew: '<path d="M6.5 4h11l-1.4 16h-8.2L6.5 4z"/><line x1="7.4" y1="10" x2="16.6" y2="10"/><line x1="10" y1="1.5" x2="8" y2="4"/><line x1="14" y1="1.5" x2="16" y2="4"/>',
+  shrug: '<circle cx="12" cy="12" r="9"/><path d="M9.3 9.3a2.7 2.7 0 0 1 5.3.6c0 1.7-2.6 2.1-2.6 4.1"/><line x1="12" y1="17.2" x2="12" y2="17.21"/>',
+
+  floral: '<circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="6.2" r="2.5"/><circle cx="17" cy="9.6" r="2.5"/><circle cx="15" cy="16" r="2.5"/><circle cx="9" cy="16" r="2.5"/><circle cx="7" cy="9.6" r="2.5"/>',
+  cocoa: '<rect x="4" y="6" width="16" height="12" rx="1.5"/><line x1="9.3" y1="6" x2="9.3" y2="18"/><line x1="14.7" y1="6" x2="14.7" y2="18"/><line x1="4" y1="12" x2="20" y2="12"/>',
+  spicy: '<path d="M12 3l5 8h-3l4 6H6l4-6H7l5-8z"/><line x1="12" y1="17" x2="12" y2="21"/>',
+  balanced: '<line x1="6" y1="9" x2="18" y2="9"/><line x1="6" y1="15" x2="18" y2="15"/>',
+
+  light_body: '<path d="M5 19c8 0 14-6 14-15-9 0-15 6-15 14 0 .5 0 1 .3 1z"/><path d="M6 18c3-3 6-6 9-11"/>',
+  medium_body: '<path d="M4 16a8 8 0 0 1 16 0"/><line x1="12" y1="16" x2="16" y2="11"/><circle cx="12" cy="16" r="1.3" fill="currentColor" stroke="none"/>',
+  heavy_body: '<path d="M2 9c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/><path d="M2 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/>',
+
+  fresh: '<path d="M12 3c4 5 6 8.2 6 11a6 6 0 0 1-12 0c0-2.8 2-6 6-11z"/><line x1="8.3" y1="15" x2="15.7" y2="15"/>',
+  half_tone: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/>',
+  flame: '<path d="M12 2c3 4 5 7 5 10a5 5 0 0 1-10 0c0-1.5.6-2.8 1.5-4-.2 1.5.6 2.5 1.8 2.5.9 0 1.5-.7 1.2-1.7-.4-1.3-.3-3.4.5-6.8z"/>',
+
+  bolt_full: '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor" stroke="none"/>',
+  bolt_outline: '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/>',
+  bolt_half: '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/><circle cx="19" cy="5" r="2.2" fill="currentColor" stroke="none"/>',
+  bolt_off: '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/><line x1="3" y1="3" x2="21" y2="21"/>',
+
+  citrus: '<circle cx="12" cy="12" r="8"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="6.3" y1="6.3" x2="17.7" y2="17.7"/><line x1="6.3" y1="17.7" x2="17.7" y2="6.3"/>',
+  smooth_circle: '<circle cx="12" cy="12" r="8"/>',
+
+  coin1: '<circle cx="12" cy="12" r="8"/><path d="M14 9.3a2.6 2.6 0 0 0-2-1 2.6 2.6 0 0 0 0 5.2 2.6 2.6 0 0 0 2-.9"/><line x1="8.6" y1="10.4" x2="12.4" y2="10.4"/><line x1="8.6" y1="12.6" x2="11.6" y2="12.6"/>',
+  coin2: '<circle cx="9" cy="10" r="6"/><circle cx="15" cy="14" r="6"/>',
+  gem: '<path d="M6 9l6-6 6 6-6 11-6-11z"/><line x1="6" y1="9" x2="18" y2="9"/><line x1="9.5" y1="3" x2="8" y2="9"/><line x1="14.5" y1="3" x2="16" y2="9"/>',
+};
+
+const QUESTIONS = [
+  { key:'brew_method', en:'How will you mostly brew this coffee?', fi:'Miten valmistat kahvisi useimmiten?', cols:2,
+    opts:[
+      ['espresso','Espresso / Moka pot','Espresso / Keittopannu','Concentrated, with crema','Tiivis, cremalla', ICON.espresso],
+      ['pour_over','Pour-over / Filter','Suodatin','Clean and aromatic','Puhdas ja aromikas', ICON.pour_over],
+      ['french_press','French press','Pressopannu','Full immersion, heavy body','Täysi uutto, täyteläinen', ICON.french_press],
+      ['cold_brew','Cold brew','Kylmäuutto','Slow, smooth, low acid','Hidas, pehmeä', ICON.cold_brew],
+      ['no_preference','No preference','Ei väliä','Mixed / not sure yet','Vaihtelevasti', ICON.shrug],
+    ]},
+  { key:'flavor_family', en:'Which flavor world pulls you in?', fi:'Mikä makumaailma houkuttelee sinua?', cols:2,
+    opts:[
+      ['fruity_floral','Fruity & floral','Hedelmäinen ja kukkainen','Jasmine, peach, citrus','Jasmiini, persikka', ICON.floral],
+      ['chocolate_nutty','Chocolate & nutty','Suklainen ja pähkinäinen','Cocoa, hazelnut, caramel','Kaakao, pähkinä', ICON.cocoa],
+      ['spicy_earthy','Spicy & earthy','Mausteinen ja maanläheinen','Cedar, pepper, tobacco','Seetri, pippuri', ICON.spicy],
+      ['balanced','Balanced — surprise me','Tasapainoinen — yllätä minut','No strong preference','Ei vahvaa mieltymystä', ICON.balanced],
+    ]},
+  { key:'body', en:'How heavy do you like your coffee to feel in the mouth?', fi:'Kuinka täyteläistä haluat kahvisi olevan?', cols:1,
+    opts:[
+      ['light','Light','Kevyt','Tea-like, delicate','Teemäinen, hento', ICON.light_body],
+      ['medium','Medium','Keskiraskas','Balanced and smooth','Tasapainoinen', ICON.medium_body],
+      ['heavy','Heavy','Raskas','Rich, coating, intense','Runsas, voimakas', ICON.heavy_body],
+      ['no_preference','No preference','Ei väliä','','', ICON.shrug],
+    ]},
+  { key:'bitterness', en:'Do you enjoy toasty, roasted flavors, or something fresh and sweet?', fi:'Pidätkö paahteisista mauista vai tuoreista ja makeista?', cols:1,
+    opts:[
+      ['fresh_sweet','Fresh & sweet','Tuore ja makea','Bright, no roastiness','Kirkas, ei paahteisuutta', ICON.fresh],
+      ['both','A bit of both','Vähän molempia','Somewhere in the middle','Jotain siltä väliltä', ICON.half_tone],
+      ['toasty_bold','Toasty & bold','Paahteinen ja voimakas','Deep roast character','Syvä paahdon luonne', ICON.flame],
+    ]},
+  { key:'caffeine', en:"What's your caffeine need?", fi:'Millainen on kofeiinitarpeesi?', cols:1,
+    opts:[
+      ['full','Full strength','Täysi teho','Maximum caffeine','Maksimi kofeiini', ICON.bolt_full],
+      ['balanced','Balanced','Tasapainoinen','Normal, everyday level','Normaali arkitaso', ICON.bolt_outline],
+      ['half_caf','Half-caf','Puolikofeiininen','Mostly decaf, a little kick','Enimmäkseen kofeiiniton', ICON.bolt_half],
+      ['decaf_only','Decaf only','Vain kofeiiniton','No caffeine at all','Ei lainkaan kofeiinia', ICON.bolt_off],
+    ]},
+  { key:'acidity', en:'Vibrant and fruity, or smooth with no tartness at all?', fi:'Eloisa ja hedelmäinen, vai pehmeä ilman kirpeyttä?', cols:1,
+    opts:[
+      ['vibrant_fruity','Vibrant & fruity','Eloisa ja hedelmäinen','Bright, juicy acidity','Kirkas, mehukas', ICON.citrus],
+      ['balanced','Balanced','Tasapainoinen','A little brightness','Hieman kirkkautta', ICON.balanced],
+      ['smooth_no_tartness','Smooth, no tartness','Pehmeä, ei kirpeyttä','Round and mellow','Pyöreä ja leppoisa', ICON.smooth_circle],
+    ]},
+  { key:'budget', en:"What's your budget preference?", fi:'Mikä on budjettitoiveesi?', cols:1,
+    opts:[
+      ['economical','Economical','Edullinen','Best value for money','Paras hinta-laatusuhde', ICON.coin1],
+      ['balanced','Balanced','Tasapainoinen','Quality-conscious middle','Laatutietoinen keskitie', ICON.coin2],
+      ['premium','Premium','Premium — laatu ensin','Quality first, price second','Laatu ennen hintaa', ICON.gem],
+    ]},
+];
+
+/* =====================================================================
+   UI STATE + RENDER
+   ===================================================================== */
+let current = 0;
+const answers = {};
+let advancing = false; // guards against double-advance while the 280ms pause is running
+
+function lang(){ return document.body.getAttribute('data-lang'); }
+
+function translateStatic(){
+  document.querySelectorAll('[data-en][data-fi]').forEach(el=>{
+    el.textContent = lang()==='fi' ? el.dataset.fi : el.dataset.en;
+  });
+}
+
+// Green (unripe) -> roasted brown, interpolated across the 7 questions —
+// same visual idea as the legacy app's per-screen bean colors, generalized
+// to any question count instead of 6 hardcoded hex values.
+const BEAN_START = [124,179,66];   // #7CB342
+const BEAN_END   = [74,44,23];     // #4A2C17
+function beanColorForStep(index, total){
+  const t = total<=1 ? 1 : index/(total-1);
+  const rgb = BEAN_START.map((c,i)=> Math.round(c + (BEAN_END[i]-c)*t));
+  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+}
+function updateBean(){
+  document.getElementById('bean-ellipse').setAttribute('fill', beanColorForStep(current, QUESTIONS.length));
+  const beanEl = document.getElementById('progress-bean');
+  beanEl.classList.remove('bean-pulse');
+  void beanEl.offsetWidth; // restart animation
+  beanEl.classList.add('bean-pulse');
+}
+
+function renderQuestion(){
+  advancing = false;
+  const q = QUESTIONS[current];
+  document.getElementById('q-index').textContent = current+1;
+  document.getElementById('question-text').textContent = lang()==='fi' ? q.fi : q.en;
+  const list = document.getElementById('options-list');
+  list.style.setProperty('--cols', q.cols || 1);
+  list.innerHTML='';
+  q.opts.forEach(([val,en,fi,descEn,descFi,icon])=>{
+    const btn=document.createElement('button');
+    btn.type='button'; btn.className='opt'+(answers[q.key]===val?' selected':'');
+    const desc = lang()==='fi' ? descFi : descEn;
+    btn.innerHTML = `
+      <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${icon}</svg></span>
+      <span class="text">
+        <span class="label">${lang()==='fi'?fi:en}</span>
+        ${desc ? `<span class="desc">${desc}</span>` : ''}
+      </span>`;
+    btn.addEventListener('click', ()=> pick(q.key, val));
+    list.appendChild(btn);
+  });
+  document.getElementById('btn-back').disabled = current===0;
+  updateBean();
+}
+
+function pick(key, val){
+  if(advancing) return; // ignore rapid double-clicks during the transition pause
+  answers[key] = val;
+  // reflect selection immediately
+  document.querySelectorAll('#options-list .opt').forEach(el=>el.classList.remove('selected'));
+  const q = QUESTIONS[current];
+  const idx = q.opts.findIndex(o=>o[0]===val);
+  document.querySelectorAll('#options-list .opt')[idx].classList.add('selected');
+  advancing = true;
+  setTimeout(()=>{
+    if(current < QUESTIONS.length-1){ current++; renderQuestion(); }
+    else { showResult(); }
+  }, 280);
+}
+
+document.getElementById('btn-back').addEventListener('click', ()=>{
+  if(current>0){ current--; renderQuestion(); }
+});
+document.getElementById('btn-restart').addEventListener('click', ()=>{
+  current=0; Object.keys(answers).forEach(k=>delete answers[k]);
+  resultSaved = false;
+  document.getElementById('result-screen').style.display='none';
+  document.getElementById('quiz-screen').style.display='block';
+  renderQuestion();
+});
+
+const SEG_CLASS = {base:'seg-base', modifier1:'seg-modifier1', modifier2:'seg-modifier2'};
+const ROLE_LABEL = {base:{en:'Base',fi:'Perusta'}, modifier1:{en:'Modifier',fi:'Muokkaaja'}, modifier2:{en:'Modifier',fi:'Muokkaaja'}};
+
+let resultSaved = false;
+function showResult(){
+  const result = recommendBlend(answers);
+  if(!resultSaved){ resultSaved = true; saveResultToSupabase({...answers}, result); }
+  document.getElementById('quiz-screen').style.display='none';
+  const rs = document.getElementById('result-screen');
+  rs.style.display='block';
+
+  const isNordicProfile = result.robustaShare < 15 && result.target.acidity >= 6;
+  document.getElementById('result-title').textContent = isNordicProfile
+    ? (lang()==='fi' ? 'Kirkas ja aromikas sekoitus' : 'A bright, aromatic blend')
+    : (lang()==='fi' ? 'Täyteläinen ja voimakas sekoitus' : 'A bold, full-bodied blend');
+  document.getElementById('result-sub').textContent = isNordicProfile
+    ? (lang()==='fi' ? 'Tämä sekoitus korostaa aromien kirkkautta paahdon voiman sijaan — suodatinkahviin sopiva, pohjoismainen profiili.' : 'This blend favors aromatic clarity over roast power — a filter-friendly, Nordic-leaning profile.')
+    : (lang()==='fi' ? 'Tämä sekoitus tähtää täyteläisyyteen ja cremaan — sopii erityisesti espressoon.' : 'This blend leans into body and crema — built for a strong, espresso-style cup.');
+
+  const bar = document.getElementById('blend-bar');
+  bar.innerHTML='';
+  result.items.forEach(it=>{
+    const seg=document.createElement('div');
+    seg.className='blend-seg '+SEG_CLASS[it.role];
+    seg.style.width = it.percentage+'%';
+    seg.innerHTML = `<span class="pct mono">${it.percentage}%</span><span class="role">${ROLE_LABEL[it.role][lang()]}</span>`;
+    bar.appendChild(seg);
+  });
+
+  document.getElementById('match-score').textContent = result.matchScore+'%';
+
+  const noteEl = document.getElementById('fallback-note');
+  if(result.fallbackApplied){
+    noteEl.style.display='block';
+    noteEl.innerHTML = lang()==='fi'
+      ? '<b>Huom:</b> Täydellistä makuvastaavuutta ei ollut saatavilla valituilla kofeiini-/makutoiveilla — tämä on lähin vaihtoehto, jonka löysimme.'
+      : '<b>Note:</b> A perfect flavor match wasn\'t available within your caffeine/flavor preferences — this is the closest option we could build.';
+  } else { noteEl.style.display='none'; }
+
+  const itemsEl = document.getElementById('items-list');
+  itemsEl.innerHTML='';
+  result.items.forEach(it=>{
+    const roast = ROAST_LABEL[it.product.roast_level][lang()];
+    const why = lang()==='fi' ? it.product.sensory.desc_fi : it.product.sensory.desc_en;
+    const row=document.createElement('div');
+    row.className='item';
+    row.innerHTML = `
+      <div class="left">
+        <div class="name">${it.product.name}</div>
+        <div class="tags">${roast} · ${it.product.price_per_kg_eur.toFixed(1)} €/kg · <span class="store-tag">${it.product.store_label||'—'}</span></div>
+        <div class="why">${why}</div>
+      </div>
+      <div class="pct-col mono">${it.percentage}%</div>
+    `;
+    itemsEl.appendChild(row);
+  });
+
+  renderAlternate(result.alternate);
+}
+
+function renderAlternate(alt){
+  const section = document.getElementById('alternate-section');
+  if(!alt){ section.style.display='none'; return; }
+  section.style.display='block';
+
+  const bar = document.getElementById('alt-blend-bar');
+  bar.innerHTML='';
+  alt.items.forEach(it=>{
+    const seg=document.createElement('div');
+    seg.className='blend-seg alt-seg '+SEG_CLASS[it.role];
+    seg.style.width = it.percentage+'%';
+    seg.innerHTML = `<span class="pct mono">${it.percentage}%</span>`;
+    bar.appendChild(seg);
+  });
+
+  const listEl = document.getElementById('alt-items-list');
+  listEl.innerHTML='';
+  alt.items.forEach(it=>{
+    const row=document.createElement('div');
+    row.className='alt-item';
+    row.innerHTML = `<span class="alt-item-name">${it.product.name}</span><span class="alt-item-store">${it.product.store_label||'—'}</span><span class="alt-item-pct mono">${it.percentage}%</span>`;
+    listEl.appendChild(row);
+  });
+
+  document.getElementById('alt-match-score').textContent = alt.matchScore+'%';
+}
+
+document.querySelectorAll('[data-setlang]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.body.setAttribute('data-lang', btn.dataset.setlang);
+    document.querySelectorAll('[data-setlang]').forEach(b=>b.classList.toggle('active', b===btn));
+    translateStatic();
+    if(!PRODUCTS.length) return; // catalog still loading, nothing to re-render yet
+    if(document.getElementById('quiz-screen').style.display!=='none'){ renderQuestion(); }
+    else { showResult(); }
+  });
+});
+
+async function init(){
+  translateStatic();
+  if(currentUser){
+    document.getElementById('auth-screen').style.display='none';
+    await enterApp();
+  }
+  // else: auth-screen stays visible (its default state) until login/register succeeds
+}
+init();
+</script>
+</body>
+</html>
