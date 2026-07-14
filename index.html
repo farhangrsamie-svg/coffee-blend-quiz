@@ -868,16 +868,21 @@ async function saveSharePreference(style, day, month){
   } catch(e){ /* optional -- fine if it fails to save */ }
 }
 
-document.getElementById('btn-create-card').addEventListener('click', async ()=>{
+document.getElementById('btn-create-card').addEventListener('click', ()=>{
   const day = document.getElementById('share-day').value;
   const month = document.getElementById('share-month').value;
   document.getElementById('share-overlay').style.display='none';
-  await saveSharePreference(selectedShareStyle, day ? Number(day) : null, month ? Number(month) : null);
-  downloadShareCard(selectedShareStyle);
+  // Share/download must fire synchronously within the click handler --
+  // navigator.share() requires "recent user activation" and an awaited
+  // network call beforehand can consume it, causing a silent/NotAllowedError
+  // failure. Saving the (optional) birthday preference happens afterward,
+  // fire-and-forget, since it's not needed for the share/download itself.
+  shareOrDownloadCard(selectedShareStyle);
+  saveSharePreference(selectedShareStyle, day ? Number(day) : null, month ? Number(month) : null);
 });
 document.getElementById('btn-skip-share').addEventListener('click', ()=>{
   document.getElementById('share-overlay').style.display='none';
-  downloadShareCard(selectedShareStyle);
+  shareOrDownloadCard(selectedShareStyle);
 });
 
 function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight){
@@ -893,68 +898,170 @@ function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight){
   return lines.length;
 }
 
+// Draws the same "what you asked for vs. what this blend delivers" radar
+// (section: why-section) directly onto a canvas, so it travels with the
+// shared image instead of only existing on the results page.
+function drawRadarOnCanvas(ctx, cx, cy, maxR, target, actual, pal){
+  const axes = RADAR_AXES;
+  const n = axes.length;
+  const angleStep = (2*Math.PI)/n;
+  function pt(i, value){
+    const angle = -Math.PI/2 + i*angleStep;
+    const r = (clamp(value,0,10)/10)*maxR;
+    return [cx + r*Math.cos(angle), cy + r*Math.sin(angle)];
+  }
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = pal.radarGrid;
+  [0.25,0.5,0.75,1].forEach(frac=>{
+    ctx.beginPath();
+    axes.forEach((a,i)=>{
+      const angle=-Math.PI/2+i*angleStep, r=frac*maxR;
+      const x=cx+r*Math.cos(angle), y=cy+r*Math.sin(angle);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.closePath(); ctx.stroke();
+  });
+  axes.forEach((a,i)=>{
+    const [x,y]=pt(i,10);
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke();
+  });
+
+  ctx.setLineDash([7,6]);
+  ctx.strokeStyle = pal.radarTarget;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  axes.forEach((a,i)=>{ const [x,y]=pt(i,target[a.key]); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+  ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = pal.radarActualFill;
+  ctx.strokeStyle = pal.radarActualLine;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  axes.forEach((a,i)=>{ const [x,y]=pt(i,actual[a.key]); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  ctx.fillStyle = pal.radarActualLine;
+  axes.forEach((a,i)=>{ const [x,y]=pt(i,actual[a.key]); ctx.beginPath(); ctx.arc(x,y,4.5,0,2*Math.PI); ctx.fill(); });
+
+  ctx.fillStyle = pal.sub;
+  ctx.font = '600 15px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'center';
+  axes.forEach((a,i)=>{
+    const angle=-Math.PI/2+i*angleStep, labelR=maxR+34;
+    const x=cx+labelR*Math.cos(angle), y=cy+labelR*Math.sin(angle);
+    ctx.fillText(lang()==='fi'?a.fi:a.en, x, y);
+  });
+  ctx.textAlign = 'left';
+}
+
 function renderShareCard(style){
-  const pal = SHARE_PALETTES[style] || SHARE_PALETTES.spruce;
+  const pal = { ...SHARE_PALETTES[style] || SHARE_PALETTES.spruce };
+  pal.radarGrid = style==='birch' ? 'rgba(43,42,36,0.15)' : 'rgba(241,238,228,0.18)';
+  pal.radarTarget = pal.accent==='#F1EEE4' ? '#F1EEE4' : '#8B2A34';
+  pal.radarActualFill = style==='birch' ? 'rgba(47,62,55,0.18)' : 'rgba(241,238,228,0.20)';
+  pal.radarActualLine = pal.text;
+
   const result = lastResultForShare;
   const canvas = document.createElement('canvas');
-  canvas.width = 800; canvas.height = 1000;
+  canvas.width = 800; canvas.height = 1150;
   const ctx = canvas.getContext('2d');
 
   ctx.fillStyle = pal.bg; ctx.fillRect(0,0,canvas.width,canvas.height);
 
   ctx.fillStyle = pal.text;
   ctx.font = '600 28px "Space Grotesk", sans-serif';
-  ctx.fillText('COFFEE IDENTITY', 60, 90);
+  ctx.fillText('COFFEE IDENTITY', 60, 80);
   ctx.font = '400 15px "IBM Plex Mono", monospace';
   ctx.fillStyle = pal.sub;
-  ctx.fillText('BLEND INTELLIGENCE ENGINE', 60, 118);
+  ctx.fillText('BLEND INTELLIGENCE ENGINE', 60, 106);
+
+  if(currentUser && currentUser.name){
+    ctx.fillStyle = pal.accent;
+    ctx.font = '600 15px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText((lang()==='fi'?'KÄYTTÄJÄLLE ':'FOR ') + currentUser.name.toUpperCase(), canvas.width-60, 90);
+    ctx.textAlign = 'left';
+  }
 
   ctx.strokeStyle = pal.accent; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(60,150); ctx.lineTo(740,150); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(60,130); ctx.lineTo(740,130); ctx.stroke();
 
   ctx.fillStyle = pal.accent;
   ctx.font = '600 16px "IBM Plex Mono", monospace';
-  ctx.fillText('MY BLEND', 60, 200);
+  ctx.fillText('MY BLEND', 60, 175);
 
   ctx.fillStyle = pal.text;
-  ctx.font = '700 40px "Space Grotesk", sans-serif';
-  const titleLines = drawWrappedText(ctx, document.getElementById('result-title').textContent, 60, 250, 680, 48);
+  ctx.font = '700 38px "Space Grotesk", sans-serif';
+  const titleLines = drawWrappedText(ctx, document.getElementById('result-title').textContent, 60, 222, 680, 44);
 
-  let y = 250 + titleLines*48 + 50;
+  let y = 222 + titleLines*44 + 44;
   result.items.forEach(it=>{
     ctx.fillStyle = pal.accent;
-    ctx.font = '700 34px "IBM Plex Mono", monospace';
+    ctx.font = '700 30px "IBM Plex Mono", monospace';
     ctx.fillText(it.percentage+'%', 60, y);
     ctx.fillStyle = pal.text;
-    ctx.font = '600 22px "Space Grotesk", sans-serif';
-    ctx.fillText(it.product.name, 170, y-6);
-    y += 60;
+    ctx.font = '600 20px "Space Grotesk", sans-serif';
+    ctx.fillText(it.product.name, 160, y-5);
+    y += 46;
   });
 
-  y += 20;
+  y += 14;
   ctx.strokeStyle = pal.accent; ctx.globalAlpha=0.4; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(60,y); ctx.lineTo(740,y); ctx.stroke(); ctx.globalAlpha=1;
-  y += 50;
+  y += 38;
   ctx.fillStyle = pal.text;
-  ctx.font = '600 20px "Space Grotesk", sans-serif';
+  ctx.font = '600 19px "Space Grotesk", sans-serif';
   ctx.fillText((result.matchScore)+'% taste match', 60, y);
+
+  const radarCy = y + 210;
+  drawRadarOnCanvas(ctx, canvas.width/2, radarCy, 130, result.target, result.finalVector, pal);
 
   ctx.fillStyle = pal.sub;
   ctx.font = '400 13px "IBM Plex Mono", monospace';
-  ctx.fillText('Formulated for the Finnish market · coffee-identity.app', 60, canvas.height-50);
+  ctx.fillText('Formulated for the Finnish market · coffee-identity.app', 60, canvas.height-40);
 
   return canvas;
 }
 
-function downloadShareCard(style){
+function dataURLtoBlob(dataURL){
+  const [header, data] = dataURL.split(',');
+  const mime = header.match(/:(.*?);/)[1];
+  const binary = atob(data);
+  const array = new Uint8Array(binary.length);
+  for(let i=0; i<binary.length; i++) array[i] = binary.charCodeAt(i);
+  return new Blob([array], {type: mime});
+}
+
+async function shareOrDownloadCard(style){
   const canvas = renderShareCard(style);
-  canvas.toBlob(blob=>{
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'my-coffee-blend.png';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, 'image/png');
+  // Synchronous canvas->blob path (toDataURL + manual decode, no async
+  // gap) so navigator.share() below fires as close to the click as
+  // possible -- it requires recent user activation, and even the short
+  // async delay of canvas.toBlob()'s callback can be enough for some
+  // browsers to reject it.
+  const blob = dataURLtoBlob(canvas.toDataURL('image/png'));
+  const file = new File([blob], 'my-coffee-blend.png', {type:'image/png'});
+
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{
+      await navigator.share({
+        files:[file],
+        title:'Coffee Identity',
+        text: lang()==='fi' ? 'Katso oma kahvisekoitukseni!' : 'Check out my coffee blend!',
+      });
+      return; // native share sheet handled it (WhatsApp, Telegram, etc.)
+    } catch(e){
+      if(e && e.name==='AbortError') return; // user cancelled the share sheet -- do nothing
+      console.error('navigator.share failed, falling back to download:', e);
+      // any other error: fall through to plain download below
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'my-coffee-blend.png';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /* =====================================================================
@@ -1026,9 +1133,9 @@ function selectModifiers(pool,base,target,w,max=2){
   return mods;
 }
 function combinedVector(items,pcts){
-  const v={body:0,bitterness:0,caffeine:0,crema:0,price:0};
+  const v={body:0,acidity:0,bitterness:0,caffeine:0,crema:0,price:0};
   items.forEach((it,i)=>{ const p=pcts[i]/100;
-    v.body+=p*it.sensory.body; v.bitterness+=p*it.sensory.bitterness;
+    v.body+=p*it.sensory.body; v.acidity+=p*it.sensory.acidity; v.bitterness+=p*it.sensory.bitterness;
     v.caffeine+=p*normalizeCaffeine(it.sensory.caffeine_mg_per_100g);
     v.crema+=p*it.sensory.crema_potential; v.price+=p*normalizePrice(it.price_per_kg_eur);
   });
