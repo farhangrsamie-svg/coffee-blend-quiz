@@ -187,6 +187,22 @@
     background:var(--spruce); color:var(--paper); padding:14px 16px; font-size:13.5px; text-align:center;
   }
 
+  /* ---- Store selection screen ---- */
+  .store-list{display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; margin-top:26px;}
+  .store-card{
+    background:var(--paper-raised); border:1px solid var(--line); padding:18px 16px;
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .store-card-name{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:16px;}
+  .store-card-desc{font-size:12px; color:var(--ink-soft); line-height:1.4; flex:1;}
+  .store-select-btn{width:100%;}
+
+  /* ---- Confirm order screen ---- */
+  .confirm-store-row{
+    display:flex; justify-content:space-between; align-items:center; padding:14px 0;
+    border-bottom:1px solid var(--line); font-size:14px; margin-bottom:16px;
+  }
+
   .restart{display:flex; justify-content:center; margin-top:12px;}
 
   footer.foot{margin-top:60px; padding-top:20px; border-top:1px solid var(--line); font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); letter-spacing:.03em;}
@@ -201,6 +217,7 @@
     .blend-seg{width:100% !important; padding:12px 16px;}
     .item{flex-direction:column;}
     .item .pct-col{align-self:flex-end; margin-top:-28px;}
+    .store-list{grid-template-columns:1fr;}
   }
 </style>
 </head>
@@ -328,6 +345,35 @@
 
     <div class="restart">
       <button class="btn-ghost" id="btn-restart" data-en="Take the quiz again" data-fi="Tee kysely uudelleen"></button>
+    </div>
+  </section>
+
+  <!-- ===================== STORE SELECTION SCREEN ===================== -->
+  <section id="store-screen" style="display:none;">
+    <div class="result-eyebrow" data-en="Choose a store" data-fi="Valitse kauppa"></div>
+    <h1 class="result-title" data-en="Who should make this blend?" data-fi="Kuka tekee tämän sekoituksen?" style="font-size:24px;"></h1>
+    <p class="result-sub" data-en="Any of these partners can roast and mix your exact recipe." data-fi="Mikä tahansa näistä kumppaneista voi paahtaa ja sekoittaa reseptisi."></p>
+    <div id="store-list" class="store-list"></div>
+    <div class="restart">
+      <button class="btn-ghost" id="btn-store-back" data-en="Back to your blend" data-fi="Takaisin sekoitukseen"></button>
+    </div>
+  </section>
+
+  <!-- ===================== ORDER CONFIRM SCREEN ===================== -->
+  <section id="confirm-screen" style="display:none;">
+    <div class="result-eyebrow" data-en="Confirm request" data-fi="Vahvista pyyntö"></div>
+    <h1 class="result-title" data-en="Send this order request" data-fi="Lähetä tilauspyyntö" style="font-size:24px;"></h1>
+    <div class="items" id="confirm-items-list"></div>
+    <div class="confirm-store-row">
+      <span data-en="Store" data-fi="Kauppa"></span>
+      <strong id="confirm-store-name"></strong>
+    </div>
+    <textarea class="order-note" id="confirm-note" rows="2" placeholder=""></textarea>
+    <button class="btn-primary auth-submit" id="btn-confirm-order" data-en="Send order request" data-fi="Lähetä tilauspyyntö"></button>
+    <div class="auth-error" id="confirm-error"></div>
+    <div id="confirm-success" style="display:none;"></div>
+    <div class="restart">
+      <button class="btn-ghost" id="btn-confirm-back" data-en="Choose a different store" data-fi="Valitse toinen kauppa"></button>
     </div>
   </section>
 
@@ -486,6 +532,8 @@ function doLogout(){
   document.getElementById('result-screen').style.display='none';
   document.getElementById('quiz-screen').style.display='none';
   document.getElementById('loading-screen').style.display='none';
+  document.getElementById('store-screen').style.display='none';
+  document.getElementById('confirm-screen').style.display='none';
   document.getElementById('auth-screen').style.display='block';
 }
 
@@ -558,38 +606,97 @@ async function saveResultToSupabase(answersObj, result){
   }
 }
 
-// Submits an order request for a given (already-saved) recipe. Disables
-// the clicked button and swaps it for a confirmation / error message.
-async function doOrder(recipeId, storeLabel, buttonEl, noteInputEl){
-  if(!recipeId){
-    buttonEl.textContent = lang()==='fi' ? 'Odota hetki…' : 'One moment…';
+// State for the in-progress order request, set when the user clicks
+// "Order this blend" on the result screen.
+let pendingOrder = { recipeId: null, items: null, storeLabel: null };
+
+const STORES = Array.from({length:10}, (_,i)=>'Store #'+(i+1));
+
+function goToStoreScreen(recipeId, items){
+  pendingOrder = { recipeId, items, storeLabel: null };
+  document.getElementById('result-screen').style.display='none';
+  document.getElementById('store-screen').style.display='block';
+  renderStoreCards();
+}
+
+function renderStoreCards(){
+  const list = document.getElementById('store-list');
+  list.innerHTML = STORES.map(s => `
+    <div class="store-card">
+      <div class="store-card-name">${s}</div>
+      <div class="store-card-desc">${lang()==='fi' ? 'Paahtaa ja sekoittaa reseptisi tilauksesta.' : 'Roasts and blends your recipe to order.'}</div>
+      <button class="btn-ghost store-select-btn" data-store="${s}">${lang()==='fi' ? 'Valitse tämä kauppa' : 'Select this store'}</button>
+    </div>
+  `).join('');
+  list.querySelectorAll('.store-select-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> selectStore(btn.dataset.store));
+  });
+}
+
+function selectStore(storeLabel){
+  pendingOrder.storeLabel = storeLabel;
+  document.getElementById('store-screen').style.display='none';
+  const cs = document.getElementById('confirm-screen');
+  cs.style.display='block';
+
+  const listEl = document.getElementById('confirm-items-list');
+  listEl.innerHTML = pendingOrder.items.map(it => `
+    <div class="item">
+      <div class="left"><div class="name">${it.product.name}</div></div>
+      <div class="pct-col mono">${it.percentage}%</div>
+    </div>
+  `).join('');
+  document.getElementById('confirm-store-name').textContent = storeLabel;
+  document.getElementById('confirm-note').value = '';
+  document.getElementById('confirm-error').textContent = '';
+  document.getElementById('confirm-success').style.display = 'none';
+  const btn = document.getElementById('btn-confirm-order');
+  btn.disabled = false;
+  btn.style.display = 'block';
+  btn.textContent = lang()==='fi' ? 'Lähetä tilauspyyntö' : 'Send order request';
+}
+
+document.getElementById('btn-store-back').addEventListener('click', ()=>{
+  document.getElementById('store-screen').style.display='none';
+  document.getElementById('result-screen').style.display='block';
+});
+document.getElementById('btn-confirm-back').addEventListener('click', ()=>{
+  document.getElementById('confirm-screen').style.display='none';
+  document.getElementById('store-screen').style.display='block';
+});
+document.getElementById('btn-confirm-order').addEventListener('click', async ()=>{
+  const btn = document.getElementById('btn-confirm-order');
+  const errEl = document.getElementById('confirm-error');
+  errEl.textContent = '';
+  if(!pendingOrder.recipeId){
+    errEl.textContent = lang()==='fi' ? 'Odota hetki ja yritä uudelleen.' : 'Please wait a moment and try again.';
     return;
   }
-  buttonEl.disabled = true;
-  const originalText = buttonEl.textContent;
-  buttonEl.textContent = lang()==='fi' ? 'Lähetetään…' : 'Sending…';
+  btn.disabled = true;
+  btn.textContent = lang()==='fi' ? 'Lähetetään…' : 'Sending…';
   try{
     await sb('blend_orders', {
       method:'POST',
       body: JSON.stringify([{
-        recipe_id: recipeId,
+        recipe_id: pendingOrder.recipeId,
         user_id: currentUser ? currentUser.id : null,
-        store_label: storeLabel,
-        note: noteInputEl && noteInputEl.value.trim() ? noteInputEl.value.trim() : null,
+        store_label: pendingOrder.storeLabel,
+        note: document.getElementById('confirm-note').value.trim() || null,
       }]),
     });
-    const wrap = buttonEl.closest('.order-box');
-    wrap.innerHTML = `<div class="order-confirmed">${lang()==='fi'
-      ? `Tilauspyyntö lähetetty — ${storeLabel} ottaa sinuun yhteyttä.`
-      : `Order request sent — ${storeLabel} will be in touch.`}</div>`;
+    btn.style.display = 'none';
+    const suc = document.getElementById('confirm-success');
+    suc.style.display = 'block';
+    suc.innerHTML = `<div class="order-confirmed">${lang()==='fi'
+      ? `Tilauspyyntö lähetetty — ${pendingOrder.storeLabel} ottaa sinuun yhteyttä.`
+      : `Order request sent — ${pendingOrder.storeLabel} will be in touch.`}</div>`;
   } catch(e){
     console.error(e);
-    buttonEl.disabled = false;
-    buttonEl.textContent = originalText;
-    const err = buttonEl.parentElement.querySelector('.order-error');
-    if(err) err.textContent = lang()==='fi' ? 'Lähetys epäonnistui. Yritä uudelleen.' : 'Could not send the request. Please try again.';
+    btn.disabled = false;
+    btn.textContent = lang()==='fi' ? 'Lähetä tilauspyyntö' : 'Send order request';
+    errEl.textContent = lang()==='fi' ? 'Lähetys epäonnistui. Yritä uudelleen.' : 'Could not send the request. Please try again.';
   }
-}
+});
 
 /* =====================================================================
    ENGINE — ported from blend-engine.js (design doc section 7, 3.1, 4.1)
@@ -914,28 +1021,20 @@ const ROLE_LABEL = {base:{en:'Base',fi:'Perusta'}, modifier1:{en:'Modifier',fi:'
 let resultSaved = false;
 let savedRecipeIds = { primaryRecipeId: null, alternateRecipeId: null };
 
-function orderBoxHtml(){
-  const notePlaceholder = lang()==='fi' ? 'Jotain lisättävää? (valinnainen)' : 'Anything to add? (optional)';
+function orderButtonHtml(){
   const loadingText = lang()==='fi' ? 'Ladataan…' : 'Loading…';
-  return `
-    <div class="order-box">
-      <textarea class="order-note" rows="2" placeholder="${notePlaceholder}"></textarea>
-      <button class="btn-primary order-btn" disabled>${loadingText}</button>
-      <div class="order-error"></div>
-    </div>`;
+  return `<button class="btn-primary order-btn" disabled>${loadingText}</button>`;
 }
 
-function wireOrderBox(container, recipeId, storeLabel){
+function wireOrderButton(container, recipeId, items){
   const btn = container.querySelector('.order-btn');
-  const note = container.querySelector('.order-note');
   if(!recipeId){
     btn.textContent = lang()==='fi' ? 'Tilaus ei saatavilla' : 'Ordering unavailable';
     return;
   }
-  const label = lang()==='fi' ? `Tilaa tämä sekoitus — ${storeLabel}` : `Order this blend — ${storeLabel}`;
-  btn.textContent = label;
+  btn.textContent = lang()==='fi' ? 'Tilaa tämä sekoitus' : 'Order this blend';
   btn.disabled = false;
-  btn.addEventListener('click', ()=> doOrder(recipeId, storeLabel, btn, note));
+  btn.addEventListener('click', ()=> goToStoreScreen(recipeId, items));
 }
 
 function showResult(){
@@ -990,11 +1089,10 @@ function showResult(){
     itemsEl.appendChild(row);
   });
 
-  // The whole blend is fulfilled by ONE store/roastery (the base bean's
-  // store, since it's the majority component) -- not one store per item.
+  // Ordering now goes through a separate store-selection screen (any
+  // store can roast/blend the recipe to order), not a per-item store tag.
   const primaryOrderEl = document.getElementById('primary-order-box');
-  primaryOrderEl.innerHTML = orderBoxHtml();
-  const primaryStore = result.items[0].product.store_label || '—';
+  primaryOrderEl.innerHTML = orderButtonHtml();
 
   renderAlternate(result.alternate);
 
@@ -1002,19 +1100,18 @@ function showResult(){
     resultSaved = true;
     saveResultToSupabase({...answers}, result).then(ids=>{
       savedRecipeIds = ids;
-      wireOrderBox(primaryOrderEl, ids.primaryRecipeId, primaryStore);
+      wireOrderButton(primaryOrderEl, ids.primaryRecipeId, result.items);
       if(result.alternate){
         const altOrderEl = document.getElementById('alt-order-box');
-        const altStore = result.alternate.items[0].product.store_label || '—';
-        wireOrderBox(altOrderEl, ids.alternateRecipeId, altStore);
+        wireOrderButton(altOrderEl, ids.alternateRecipeId, result.alternate.items);
       }
     });
   } else {
     // language was toggled after saving already happened -- rewire with the ids we already have
-    wireOrderBox(primaryOrderEl, savedRecipeIds.primaryRecipeId, result.items[0].product.store_label || '—');
+    wireOrderButton(primaryOrderEl, savedRecipeIds.primaryRecipeId, result.items);
     if(result.alternate){
       const altOrderEl = document.getElementById('alt-order-box');
-      wireOrderBox(altOrderEl, savedRecipeIds.alternateRecipeId, result.alternate.items[0].product.store_label || '—');
+      wireOrderButton(altOrderEl, savedRecipeIds.alternateRecipeId, result.alternate.items);
     }
   }
 }
@@ -1023,7 +1120,7 @@ function renderAlternate(alt){
   const section = document.getElementById('alternate-section');
   if(!alt){ section.style.display='none'; return; }
   section.style.display='block';
-  document.getElementById('alt-order-box').innerHTML = orderBoxHtml();
+  document.getElementById('alt-order-box').innerHTML = orderButtonHtml();
 
   const bar = document.getElementById('alt-blend-bar');
   bar.innerHTML='';
