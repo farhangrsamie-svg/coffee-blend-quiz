@@ -64,7 +64,32 @@
   .auth-status{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-soft);}
   .auth-status #auth-status-name{font-weight:600; color:var(--ink);}
 
-  /* ---- Auth screen (mandatory gate, shown before the quiz) ---- */
+  /* ---- Generic modal (used by Share) ---- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(43,42,36,.45); z-index:50;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-card{
+    background:var(--paper-raised); border:1px solid var(--line); max-width:380px; width:100%;
+    padding:30px 26px 26px; position:relative; max-height:90vh; overflow-y:auto;
+  }
+  .modal-close{
+    position:absolute; top:14px; right:16px; background:none; border:none;
+    font-size:22px; line-height:1; color:var(--ink-soft); padding:4px;
+  }
+
+  /* ---- Share ---- */
+  .share-row{display:flex; justify-content:center; margin-top:14px;}
+  .share-style-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;}
+  .share-style-card{
+    display:flex; flex-direction:column; align-items:center; gap:8px; padding:12px 6px;
+    background:var(--paper); border:1px solid var(--line); font-size:11.5px; color:var(--ink);
+  }
+  .share-style-card.selected{border-color:var(--spruce); background:var(--oat-soft);}
+  .share-style-swatch{width:30px; height:30px; border-radius:50%; display:block;}
+  .share-birthday-label{font-size:12px; color:var(--ink-soft); line-height:1.5; margin-bottom:10px;}
+  .share-birthday-row{display:flex; gap:8px; margin-bottom:8px;}
+  .share-birthday-row select{flex:1;}
   .auth-card{max-width:380px; margin:40px auto 0;}
   .auth-tabs{display:flex; gap:6px; margin-bottom:22px; border-bottom:1px solid var(--line);}
   .auth-tab{
@@ -368,6 +393,10 @@
     <div class="items" id="items-list"></div>
     <div id="primary-order-box"></div>
 
+    <div class="share-row">
+      <button class="btn-ghost" id="btn-open-share" data-en="Share this blend" data-fi="Jaa tämä sekoitus"></button>
+    </div>
+
     <section id="alternate-section" style="display:none;">
       <div class="alt-divider"></div>
       <div class="result-eyebrow" data-en="Or, try this instead" data-fi="Tai kokeile tätä"></div>
@@ -415,6 +444,43 @@
       <button class="btn-ghost" id="btn-confirm-back" data-en="Choose a different store" data-fi="Valitse toinen kauppa"></button>
     </div>
   </section>
+
+  <!-- ===================== SHARE MODAL ===================== -->
+  <div class="modal-overlay" id="share-overlay" style="display:none;">
+    <div class="modal-card">
+      <button class="modal-close" id="share-close" aria-label="Close">×</button>
+      <div class="eyebrow" data-en="Make it yours" data-fi="Tee siitä omasi"></div>
+      <h1 class="question" style="font-size:19px; margin-bottom:18px;" data-en="Personalize your card?" data-fi="Muokataanko korttiasi?"></h1>
+
+      <div class="share-style-grid" id="share-style-grid">
+        <button class="share-style-card" data-style="spruce">
+          <span class="share-style-swatch" style="background:#2F3E37;"></span>
+          <span data-en="Spruce" data-fi="Kuusi"></span>
+        </button>
+        <button class="share-style-card" data-style="lingonberry">
+          <span class="share-style-swatch" style="background:#8B2A34;"></span>
+          <span data-en="Lingonberry" data-fi="Puolukka"></span>
+        </button>
+        <button class="share-style-card" data-style="birch">
+          <span class="share-style-swatch" style="background:#E4D6B4; border:1px solid #C9C0AC;"></span>
+          <span data-en="Birch" data-fi="Koivu"></span>
+        </button>
+      </div>
+
+      <p class="share-birthday-label" data-en="Want a birthday coffee surprise? Tell us your birthday (optional — day &amp; month only, never your age)." data-fi="Haluatko syntymäpäiväyllätyksen? Kerro syntymäpäiväsi (valinnainen — vain päivä ja kuukausi, ei ikääsi)."></p>
+      <div class="share-birthday-row">
+        <select id="share-day" class="input-field">
+          <option value="" data-en="Day" data-fi="Päivä"></option>
+        </select>
+        <select id="share-month" class="input-field">
+          <option value="" data-en="Month" data-fi="Kuukausi"></option>
+        </select>
+      </div>
+
+      <button class="btn-primary auth-submit" id="btn-create-card" data-en="Create my card" data-fi="Luo korttini"></button>
+      <button class="btn-ghost auth-submit" id="btn-skip-share" style="margin-top:8px;" data-en="Skip, just download" data-fi="Ohita, lataa vain"></button>
+    </div>
+  </div>
 
   <footer class="foot">
     <span data-en="Formulated locally in your browser · no data leaves this device" data-fi="Muodostettu paikallisesti selaimessasi · tieto ei poistu tältä laitteelta"></span>
@@ -574,6 +640,8 @@ function doLogout(){
   document.getElementById('store-screen').style.display='none';
   document.getElementById('confirm-screen').style.display='none';
   document.getElementById('teaser-screen').style.display='none';
+  document.getElementById('share-overlay').style.display='none';
+  lastResultForShare = null;
   document.getElementById('auth-screen').style.display='block';
 }
 
@@ -737,6 +805,157 @@ document.getElementById('btn-confirm-order').addEventListener('click', async ()=
     errEl.textContent = lang()==='fi' ? 'Lähetys epäonnistui. Yritä uudelleen.' : 'Could not send the request. Please try again.';
   }
 });
+
+/* =====================================================================
+   SHARE — style-selectable, downloadable PNG card of the current blend.
+   Birthday capture is optional/skippable, day+month only (no year).
+   ===================================================================== */
+const SHARE_PALETTES = {
+  spruce:      { bg:'#2F3E37', accent:'#C9A96B', text:'#F1EEE4', sub:'rgba(241,238,228,0.75)' },
+  lingonberry: { bg:'#8B2A34', accent:'#F1EEE4', text:'#F1EEE4', sub:'rgba(241,238,228,0.8)' },
+  birch:       { bg:'#E4D6B4', accent:'#2F3E37', text:'#2B2A24', sub:'rgba(43,42,36,0.65)' },
+};
+let selectedShareStyle = 'spruce';
+let lastResultForShare = null;
+
+function populateShareBirthdaySelects(){
+  const dayEl = document.getElementById('share-day');
+  const monthEl = document.getElementById('share-month');
+  if(dayEl.options.length <= 1){
+    for(let d=1; d<=31; d++){ const o=document.createElement('option'); o.value=d; o.textContent=d; dayEl.appendChild(o); }
+  }
+  if(monthEl.options.length <= 1){
+    const months = lang()==='fi'
+      ? ['Tammi','Helmi','Maalis','Huhti','Touko','Kesä','Heinä','Elo','Syys','Loka','Marras','Joulu']
+      : ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    months.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=m; monthEl.appendChild(o); });
+  }
+}
+
+document.getElementById('btn-open-share').addEventListener('click', ()=>{
+  if(!lastResultForShare) return;
+  populateShareBirthdaySelects();
+  selectedShareStyle = 'spruce';
+  document.querySelectorAll('.share-style-card').forEach(c=>c.classList.toggle('selected', c.dataset.style==='spruce'));
+  document.getElementById('share-overlay').style.display='flex';
+});
+document.getElementById('share-close').addEventListener('click', ()=>{
+  document.getElementById('share-overlay').style.display='none';
+});
+document.getElementById('share-overlay').addEventListener('click', (e)=>{
+  if(e.target.id==='share-overlay') document.getElementById('share-overlay').style.display='none';
+});
+document.querySelectorAll('.share-style-card').forEach(card=>{
+  card.addEventListener('click', ()=>{
+    selectedShareStyle = card.dataset.style;
+    document.querySelectorAll('.share-style-card').forEach(c=>c.classList.toggle('selected', c===card));
+  });
+});
+
+async function saveSharePreference(style, day, month){
+  if(!lastResultForShare) return;
+  try{
+    await sb('blend_share_preferences', {
+      method:'POST',
+      body: JSON.stringify([{
+        user_id: currentUser ? currentUser.id : null,
+        recipe_id: savedRecipeIds.primaryRecipeId,
+        style,
+        birth_day: day || null,
+        birth_month: month || null,
+      }]),
+    });
+  } catch(e){ /* optional -- fine if it fails to save */ }
+}
+
+document.getElementById('btn-create-card').addEventListener('click', async ()=>{
+  const day = document.getElementById('share-day').value;
+  const month = document.getElementById('share-month').value;
+  document.getElementById('share-overlay').style.display='none';
+  await saveSharePreference(selectedShareStyle, day ? Number(day) : null, month ? Number(month) : null);
+  downloadShareCard(selectedShareStyle);
+});
+document.getElementById('btn-skip-share').addEventListener('click', ()=>{
+  document.getElementById('share-overlay').style.display='none';
+  downloadShareCard(selectedShareStyle);
+});
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight){
+  const words = text.split(' ');
+  let line = '', lines = [];
+  words.forEach(w=>{
+    const test = line ? line+' '+w : w;
+    if(ctx.measureText(test).width > maxWidth && line){ lines.push(line); line=w; }
+    else{ line = test; }
+  });
+  if(line) lines.push(line);
+  lines.forEach((l,i)=> ctx.fillText(l, x, y+i*lineHeight));
+  return lines.length;
+}
+
+function renderShareCard(style){
+  const pal = SHARE_PALETTES[style] || SHARE_PALETTES.spruce;
+  const result = lastResultForShare;
+  const canvas = document.createElement('canvas');
+  canvas.width = 800; canvas.height = 1000;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = pal.bg; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle = pal.text;
+  ctx.font = '600 28px "Space Grotesk", sans-serif';
+  ctx.fillText('COFFEE IDENTITY', 60, 90);
+  ctx.font = '400 15px "IBM Plex Mono", monospace';
+  ctx.fillStyle = pal.sub;
+  ctx.fillText('BLEND INTELLIGENCE ENGINE', 60, 118);
+
+  ctx.strokeStyle = pal.accent; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(60,150); ctx.lineTo(740,150); ctx.stroke();
+
+  ctx.fillStyle = pal.accent;
+  ctx.font = '600 16px "IBM Plex Mono", monospace';
+  ctx.fillText('MY BLEND', 60, 200);
+
+  ctx.fillStyle = pal.text;
+  ctx.font = '700 40px "Space Grotesk", sans-serif';
+  const titleLines = drawWrappedText(ctx, document.getElementById('result-title').textContent, 60, 250, 680, 48);
+
+  let y = 250 + titleLines*48 + 50;
+  result.items.forEach(it=>{
+    ctx.fillStyle = pal.accent;
+    ctx.font = '700 34px "IBM Plex Mono", monospace';
+    ctx.fillText(it.percentage+'%', 60, y);
+    ctx.fillStyle = pal.text;
+    ctx.font = '600 22px "Space Grotesk", sans-serif';
+    ctx.fillText(it.product.name, 170, y-6);
+    y += 60;
+  });
+
+  y += 20;
+  ctx.strokeStyle = pal.accent; ctx.globalAlpha=0.4; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(60,y); ctx.lineTo(740,y); ctx.stroke(); ctx.globalAlpha=1;
+  y += 50;
+  ctx.fillStyle = pal.text;
+  ctx.font = '600 20px "Space Grotesk", sans-serif';
+  ctx.fillText((result.matchScore)+'% taste match', 60, y);
+
+  ctx.fillStyle = pal.sub;
+  ctx.font = '400 13px "IBM Plex Mono", monospace';
+  ctx.fillText('Formulated for the Finnish market · coffee-identity.app', 60, canvas.height-50);
+
+  return canvas;
+}
+
+function downloadShareCard(style){
+  const canvas = renderShareCard(style);
+  canvas.toBlob(blob=>{
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'my-coffee-blend.png';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+}
 
 /* =====================================================================
    ENGINE — ported from blend-engine.js (design doc section 7, 3.1, 4.1)
@@ -1177,6 +1396,7 @@ function wireOrderButton(container, recipeId, items){
 
 function showResult(){
   const result = recommendBlend(answers);
+  lastResultForShare = result;
   document.getElementById('quiz-screen').style.display='none';
   const rs = document.getElementById('result-screen');
   rs.style.display='block';
