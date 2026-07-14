@@ -174,6 +174,19 @@
   .alt-item-store{color:var(--spruce); font-family:'IBM Plex Mono',monospace; font-size:11px;}
   .alt-item-pct{font-weight:600;}
 
+  /* ---- Order box ---- */
+  .order-box{margin-top:18px; padding-top:18px; border-top:1px solid var(--line);}
+  .order-note{
+    width:100%; min-height:52px; padding:10px 12px; font-size:13.5px; font-family:inherit;
+    border:1px solid var(--line); background:var(--paper); color:var(--ink); resize:vertical; margin-bottom:10px;
+  }
+  .order-note:focus{border-color:var(--spruce);}
+  .order-btn{width:100%;}
+  .order-error{color:var(--lingon); font-size:12.5px; margin-top:8px;}
+  .order-confirmed{
+    background:var(--spruce); color:var(--paper); padding:14px 16px; font-size:13.5px; text-align:center;
+  }
+
   .restart{display:flex; justify-content:center; margin-top:12px;}
 
   footer.foot{margin-top:60px; padding-top:20px; border-top:1px solid var(--line); font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); letter-spacing:.03em;}
@@ -298,6 +311,7 @@
     <div id="fallback-note" class="note" style="display:none;"></div>
 
     <div class="items" id="items-list"></div>
+    <div id="primary-order-box"></div>
 
     <section id="alternate-section" style="display:none;">
       <div class="alt-divider"></div>
@@ -309,6 +323,7 @@
         <span class="lbl" data-en="taste match" data-fi="makuvastaavuus"></span>
       </div>
       <div class="alt-items" id="alt-items-list"></div>
+      <div id="alt-order-box"></div>
     </section>
 
     <div class="restart">
@@ -510,21 +525,70 @@ async function loadCatalog(){
 // Persists a completed quiz + its recommended recipe (fire-and-forget:
 // never blocks or breaks the UI if it fails — the quiz already works
 // standalone, this is additive telemetry per design doc section 13.4 KPIs).
+async function saveRecipe(sessionId, items, matchScore, fallbackApplied, fallbackReason, isAlternate){
+  const [recipe] = await sb('blend_recipes', {
+    method:'POST', headers:{Prefer:'return=representation'},
+    body: JSON.stringify([{ quiz_session_id: sessionId, user_id: currentUser ? currentUser.id : null, match_score: matchScore, fallback_applied: fallbackApplied, fallback_reason: fallbackReason||null, is_alternate: !!isAlternate }]),
+  });
+  await sb('blend_recipe_items', {
+    method:'POST',
+    body: JSON.stringify(items.map(it => ({ recipe_id: recipe.id, market_product_id: it.product.id, role: it.role, percentage: it.percentage }))),
+  });
+  return recipe.id;
+}
+
+// Persists the quiz session plus both the primary and (if present) the
+// alternate recipe, so either one can later be referenced by an "Order
+// this blend" button. Returns {primaryRecipeId, alternateRecipeId}.
 async function saveResultToSupabase(answersObj, result){
   try{
     const [session] = await sb('blend_quiz_sessions', {
       method:'POST', headers:{Prefer:'return=representation'},
       body: JSON.stringify([{ user_id: currentUser ? currentUser.id : null, locale:'FI', answers: answersObj, target_vector: result.target }]),
     });
-    const [recipe] = await sb('blend_recipes', {
-      method:'POST', headers:{Prefer:'return=representation'},
-      body: JSON.stringify([{ quiz_session_id: session.id, user_id: currentUser ? currentUser.id : null, match_score: result.matchScore, fallback_applied: result.fallbackApplied, fallback_reason: result.fallbackReason||null }]),
-    });
-    await sb('blend_recipe_items', {
+    const primaryRecipeId = await saveRecipe(session.id, result.items, result.matchScore, result.fallbackApplied, result.fallbackReason, false);
+    let alternateRecipeId = null;
+    if(result.alternate){
+      alternateRecipeId = await saveRecipe(session.id, result.alternate.items, result.alternate.matchScore, false, null, true);
+    }
+    return { primaryRecipeId, alternateRecipeId };
+  } catch(e){
+    console.error('Could not save result to Supabase (non-blocking):', e);
+    return { primaryRecipeId: null, alternateRecipeId: null };
+  }
+}
+
+// Submits an order request for a given (already-saved) recipe. Disables
+// the clicked button and swaps it for a confirmation / error message.
+async function doOrder(recipeId, storeLabel, buttonEl, noteInputEl){
+  if(!recipeId){
+    buttonEl.textContent = lang()==='fi' ? 'Odota hetki…' : 'One moment…';
+    return;
+  }
+  buttonEl.disabled = true;
+  const originalText = buttonEl.textContent;
+  buttonEl.textContent = lang()==='fi' ? 'Lähetetään…' : 'Sending…';
+  try{
+    await sb('blend_orders', {
       method:'POST',
-      body: JSON.stringify(result.items.map(it => ({ recipe_id: recipe.id, market_product_id: it.product.id, role: it.role, percentage: it.percentage }))),
+      body: JSON.stringify([{
+        recipe_id: recipeId,
+        user_id: currentUser ? currentUser.id : null,
+        store_label: storeLabel,
+        note: noteInputEl && noteInputEl.value.trim() ? noteInputEl.value.trim() : null,
+      }]),
     });
-  } catch(e){ console.error('Could not save result to Supabase (non-blocking):', e); }
+    const wrap = buttonEl.closest('.order-box');
+    wrap.innerHTML = `<div class="order-confirmed">${lang()==='fi'
+      ? `Tilauspyyntö lähetetty — ${storeLabel} ottaa sinuun yhteyttä.`
+      : `Order request sent — ${storeLabel} will be in touch.`}</div>`;
+  } catch(e){
+    console.error(e);
+    buttonEl.disabled = false;
+    buttonEl.textContent = originalText;
+    const err = buttonEl.parentElement.querySelector('.order-error');
+    if(err) err.textContent = lang()==='fi' ? 'Lähetys epäonnistui. Yritä uudelleen.' : 'Could not send the request. Please try again.';
+  }
 }
 
 /* =====================================================================
@@ -848,9 +912,34 @@ const SEG_CLASS = {base:'seg-base', modifier1:'seg-modifier1', modifier2:'seg-mo
 const ROLE_LABEL = {base:{en:'Base',fi:'Perusta'}, modifier1:{en:'Modifier',fi:'Muokkaaja'}, modifier2:{en:'Modifier',fi:'Muokkaaja'}};
 
 let resultSaved = false;
+let savedRecipeIds = { primaryRecipeId: null, alternateRecipeId: null };
+
+function orderBoxHtml(){
+  const notePlaceholder = lang()==='fi' ? 'Jotain lisättävää? (valinnainen)' : 'Anything to add? (optional)';
+  const loadingText = lang()==='fi' ? 'Ladataan…' : 'Loading…';
+  return `
+    <div class="order-box">
+      <textarea class="order-note" rows="2" placeholder="${notePlaceholder}"></textarea>
+      <button class="btn-primary order-btn" disabled>${loadingText}</button>
+      <div class="order-error"></div>
+    </div>`;
+}
+
+function wireOrderBox(container, recipeId, storeLabel){
+  const btn = container.querySelector('.order-btn');
+  const note = container.querySelector('.order-note');
+  if(!recipeId){
+    btn.textContent = lang()==='fi' ? 'Tilaus ei saatavilla' : 'Ordering unavailable';
+    return;
+  }
+  const label = lang()==='fi' ? `Tilaa tämä sekoitus — ${storeLabel}` : `Order this blend — ${storeLabel}`;
+  btn.textContent = label;
+  btn.disabled = false;
+  btn.addEventListener('click', ()=> doOrder(recipeId, storeLabel, btn, note));
+}
+
 function showResult(){
   const result = recommendBlend(answers);
-  if(!resultSaved){ resultSaved = true; saveResultToSupabase({...answers}, result); }
   document.getElementById('quiz-screen').style.display='none';
   const rs = document.getElementById('result-screen');
   rs.style.display='block';
@@ -893,7 +982,7 @@ function showResult(){
     row.innerHTML = `
       <div class="left">
         <div class="name">${it.product.name}</div>
-        <div class="tags">${roast} · ${it.product.price_per_kg_eur.toFixed(1)} €/kg · <span class="store-tag">${it.product.store_label||'—'}</span></div>
+        <div class="tags">${roast} · ${it.product.price_per_kg_eur.toFixed(1)} €/kg</div>
         <div class="why">${why}</div>
       </div>
       <div class="pct-col mono">${it.percentage}%</div>
@@ -901,13 +990,40 @@ function showResult(){
     itemsEl.appendChild(row);
   });
 
+  // The whole blend is fulfilled by ONE store/roastery (the base bean's
+  // store, since it's the majority component) -- not one store per item.
+  const primaryOrderEl = document.getElementById('primary-order-box');
+  primaryOrderEl.innerHTML = orderBoxHtml();
+  const primaryStore = result.items[0].product.store_label || '—';
+
   renderAlternate(result.alternate);
+
+  if(!resultSaved){
+    resultSaved = true;
+    saveResultToSupabase({...answers}, result).then(ids=>{
+      savedRecipeIds = ids;
+      wireOrderBox(primaryOrderEl, ids.primaryRecipeId, primaryStore);
+      if(result.alternate){
+        const altOrderEl = document.getElementById('alt-order-box');
+        const altStore = result.alternate.items[0].product.store_label || '—';
+        wireOrderBox(altOrderEl, ids.alternateRecipeId, altStore);
+      }
+    });
+  } else {
+    // language was toggled after saving already happened -- rewire with the ids we already have
+    wireOrderBox(primaryOrderEl, savedRecipeIds.primaryRecipeId, result.items[0].product.store_label || '—');
+    if(result.alternate){
+      const altOrderEl = document.getElementById('alt-order-box');
+      wireOrderBox(altOrderEl, savedRecipeIds.alternateRecipeId, result.alternate.items[0].product.store_label || '—');
+    }
+  }
 }
 
 function renderAlternate(alt){
   const section = document.getElementById('alternate-section');
   if(!alt){ section.style.display='none'; return; }
   section.style.display='block';
+  document.getElementById('alt-order-box').innerHTML = orderBoxHtml();
 
   const bar = document.getElementById('alt-blend-bar');
   bar.innerHTML='';
@@ -924,7 +1040,7 @@ function renderAlternate(alt){
   alt.items.forEach(it=>{
     const row=document.createElement('div');
     row.className='alt-item';
-    row.innerHTML = `<span class="alt-item-name">${it.product.name}</span><span class="alt-item-store">${it.product.store_label||'—'}</span><span class="alt-item-pct mono">${it.percentage}%</span>`;
+    row.innerHTML = `<span class="alt-item-name">${it.product.name}</span><span class="alt-item-pct mono">${it.percentage}%</span>`;
     listEl.appendChild(row);
   });
 
