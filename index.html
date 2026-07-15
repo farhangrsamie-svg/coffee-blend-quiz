@@ -24,6 +24,22 @@
     --focus:#1E5C7A;
     --radius:2px;
   }
+  body.dark-mode{
+    --paper:#18170F;
+    --paper-raised:#211F16;
+    --ink:#F1EEE4;
+    --ink-soft:#B2AB98;
+    --spruce:#5C8271;
+    --spruce-light:#79A08D;
+    --lingon:#D97D87;
+    --lingon-soft:#B85C64;
+    --oat:#8A6F45;
+    --oat-soft:#332C1C;
+    --line:#3A3626;
+    --line-soft:#2B2819;
+    --focus:#5FB3DE;
+  }
+  body{transition:background-color .2s ease, color .2s ease;}
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
   body{
@@ -61,6 +77,11 @@
 
   /* ---- Header auth area ---- */
   .header-right{display:flex; align-items:center; gap:10px;}
+  .theme-toggle{
+    background:transparent; border:1px solid var(--line); border-radius:999px;
+    width:36px; height:36px; font-size:16px; line-height:1; display:flex;
+    align-items:center; justify-content:center; color:var(--ink);
+  }
   .auth-status{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-soft);}
   .auth-status #auth-status-name{font-weight:600; color:var(--ink);}
 
@@ -87,6 +108,36 @@
   }
   .share-style-card.selected{border-color:var(--spruce); background:var(--oat-soft);}
   .share-style-swatch{width:30px; height:30px; border-radius:50%; display:block;}
+  .share-format-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:8px 0 18px;}
+  .share-format-card{
+    display:flex; flex-direction:column; align-items:center; gap:8px; padding:12px 6px;
+    background:var(--paper); border:1px solid var(--line); font-size:11.5px; color:var(--ink);
+  }
+  .share-format-card.selected{border-color:var(--spruce); background:var(--oat-soft);}
+  .share-format-swatch{border:1.5px solid var(--ink-soft); background:var(--paper-raised);}
+  .square-swatch{width:26px; height:26px;}
+  .story-swatch{width:16px; height:26px;}
+
+  .share-row{display:flex; justify-content:center; margin-top:14px;}
+  .btn-share{
+    background:var(--lingon); color:var(--paper); border:1px solid var(--lingon);
+    padding:11px 26px; border-radius:999px; font-size:13.5px; font-weight:600;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .btn-share svg{width:16px; height:16px;}
+
+  /* ---- My Blends (history) ---- */
+  .history-list{display:flex; flex-direction:column; gap:12px; margin-top:22px;}
+  .history-card{background:var(--paper-raised); border:1px solid var(--line); padding:18px 20px;}
+  .history-card-top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;}
+  .history-card-date{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft);}
+  .history-card-score{font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; color:var(--spruce);}
+  .history-card-items{font-size:13.5px; color:var(--ink); line-height:1.6;}
+  .history-empty{color:var(--ink-soft); font-size:14px; text-align:center; padding:40px 0;}
+  .history-alt-badge{
+    display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.04em;
+    color:var(--lingon); border:1px solid var(--lingon-soft); border-radius:999px; padding:2px 8px; margin-left:8px;
+  }
   .share-birthday-label{font-size:12px; color:var(--ink-soft); line-height:1.5; margin-bottom:10px;}
   .share-birthday-row{display:flex; gap:8px; margin-bottom:8px;}
   .share-birthday-row select{flex:1;}
@@ -275,12 +326,14 @@
       <div class="sub">Blend Intelligence Engine</div>
     </div>
     <div class="header-right">
+      <button type="button" class="theme-toggle" id="btn-dark-toggle" aria-label="Toggle dark mode">🌙</button>
       <div class="lang-toggle" role="group" aria-label="Language">
         <button type="button" class="active" data-setlang="en">EN</button>
         <button type="button" data-setlang="fi">FI</button>
       </div>
       <div class="auth-status" id="auth-status" style="display:none;">
         <span id="auth-status-name"></span>
+        <button class="btn-ghost" id="btn-open-history" data-en="My blends" data-fi="Sekoitukseni"></button>
         <button class="btn-ghost" id="btn-logout" data-en="Log out" data-fi="Kirjaudu ulos"></button>
       </div>
     </div>
@@ -394,7 +447,10 @@
     <div id="primary-order-box"></div>
 
     <div class="share-row">
-      <button class="btn-ghost" id="btn-open-share" data-en="Share this blend" data-fi="Jaa tämä sekoitus"></button>
+      <button class="btn-share" id="btn-open-share">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.6" x2="15.4" y2="6.4"/><line x1="8.6" y1="13.4" x2="15.4" y2="17.6"/></svg>
+        <span data-en="Share this blend" data-fi="Jaa tämä sekoitus"></span>
+      </button>
     </div>
 
     <section id="alternate-section" style="display:none;">
@@ -440,8 +496,21 @@
     <button class="btn-primary auth-submit" id="btn-confirm-order" data-en="Send order request" data-fi="Lähetä tilauspyyntö"></button>
     <div class="auth-error" id="confirm-error"></div>
     <div id="confirm-success" style="display:none;"></div>
-    <div class="restart">
+    <div class="restart" id="confirm-back-row">
       <button class="btn-ghost" id="btn-confirm-back" data-en="Choose a different store" data-fi="Valitse toinen kauppa"></button>
+    </div>
+    <div class="restart" id="confirm-done-row" style="display:none;">
+      <button class="btn-ghost" id="btn-confirm-done" data-en="Back to your blend" data-fi="Takaisin sekoitukseen"></button>
+    </div>
+  </section>
+
+  <!-- ===================== MY BLENDS (history) ===================== -->
+  <section id="history-screen" style="display:none;">
+    <div class="result-eyebrow" data-en="Your history" data-fi="Historiasi"></div>
+    <h1 class="result-title" style="font-size:24px;" data-en="My blends" data-fi="Sekoitukseni"></h1>
+    <div id="history-list" class="history-list"></div>
+    <div class="restart">
+      <button class="btn-ghost" id="btn-history-back" data-en="Back" data-fi="Takaisin"></button>
     </div>
   </section>
 
@@ -453,17 +522,29 @@
       <h1 class="question" style="font-size:19px; margin-bottom:18px;" data-en="Personalize your card?" data-fi="Muokataanko korttiasi?"></h1>
 
       <div class="share-style-grid" id="share-style-grid">
-        <button class="share-style-card" data-style="spruce">
-          <span class="share-style-swatch" style="background:#2F3E37;"></span>
-          <span data-en="Spruce" data-fi="Kuusi"></span>
-        </button>
         <button class="share-style-card" data-style="lingonberry">
           <span class="share-style-swatch" style="background:#8B2A34;"></span>
-          <span data-en="Lingonberry" data-fi="Puolukka"></span>
+          <span data-en="Bold" data-fi="Rohkea"></span>
+        </button>
+        <button class="share-style-card" data-style="spruce">
+          <span class="share-style-swatch" style="background:#2F3E37;"></span>
+          <span data-en="Elegant" data-fi="Elegantti"></span>
         </button>
         <button class="share-style-card" data-style="birch">
           <span class="share-style-swatch" style="background:#E4D6B4; border:1px solid #C9C0AC;"></span>
-          <span data-en="Birch" data-fi="Koivu"></span>
+          <span data-en="Surprise me" data-fi="Yllätä minut"></span>
+        </button>
+      </div>
+
+      <div class="input-label" data-en="Format" data-fi="Muoto" style="margin-top:2px;"></div>
+      <div class="share-format-grid" id="share-format-grid">
+        <button class="share-format-card" data-format="square">
+          <span class="share-format-swatch square-swatch"></span>
+          <span data-en="Square post" data-fi="Neliöpostaus"></span>
+        </button>
+        <button class="share-format-card" data-format="story">
+          <span class="share-format-swatch story-swatch"></span>
+          <span data-en="Story" data-fi="Tarina"></span>
         </button>
       </div>
 
@@ -488,6 +569,29 @@
 </div>
 
 <script>
+/* =====================================================================
+   DARK MODE — same pattern as the legacy app: class + localStorage +
+   prefers-color-scheme fallback. Runs first, before anything else, to
+   avoid a flash of the wrong theme.
+   ===================================================================== */
+function toggleDarkMode(){
+  const isDark = document.body.classList.toggle('dark-mode');
+  document.getElementById('btn-dark-toggle').textContent = isDark ? '☀️' : '🌙';
+  try{ localStorage.setItem('blend_dark_mode', isDark ? '1' : '0'); } catch(e){}
+}
+function initDarkMode(){
+  let saved = null;
+  try{ saved = localStorage.getItem('blend_dark_mode'); } catch(e){}
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const shouldBeDark = saved !== null ? saved==='1' : prefersDark;
+  if(shouldBeDark){
+    document.body.classList.add('dark-mode');
+    document.getElementById('btn-dark-toggle').textContent = '☀️';
+  }
+}
+initDarkMode();
+document.getElementById('btn-dark-toggle').addEventListener('click', toggleDarkMode);
+
 /* =====================================================================
    SEED DATA — mirrors coffee-blend-seed-v1.sql (15 profiles + products)
    ===================================================================== */
@@ -641,9 +745,64 @@ function doLogout(){
   document.getElementById('confirm-screen').style.display='none';
   document.getElementById('teaser-screen').style.display='none';
   document.getElementById('share-overlay').style.display='none';
+  document.getElementById('history-screen').style.display='none';
   lastResultForShare = null;
   document.getElementById('auth-screen').style.display='block';
 }
+
+/* =====================================================================
+   MY BLENDS — history of past quiz results for the logged-in user.
+   Data was already being saved (blend_quiz_sessions/blend_recipes);
+   this was the missing "view it" screen.
+   ===================================================================== */
+const HISTORY_SCREENS = ['quiz-screen','result-screen','store-screen','confirm-screen','teaser-screen'];
+let screenBeforeHistory = 'quiz-screen';
+
+function openHistory(){
+  if(!currentUser) return;
+  screenBeforeHistory = HISTORY_SCREENS.find(id => document.getElementById(id).style.display==='block') || 'quiz-screen';
+  HISTORY_SCREENS.forEach(id=> document.getElementById(id).style.display='none');
+  document.getElementById('history-screen').style.display='block';
+  loadHistory();
+}
+function closeHistory(){
+  document.getElementById('history-screen').style.display='none';
+  document.getElementById(screenBeforeHistory).style.display='block';
+}
+
+async function loadHistory(){
+  const listEl = document.getElementById('history-list');
+  listEl.innerHTML = `<div class="history-empty">${lang()==='fi' ? 'Ladataan…' : 'Loading…'}</div>`;
+  try{
+    const rows = await sb(
+      `blend_recipes?select=id,match_score,is_alternate,created_at,blend_recipe_items(percentage,role,blend_market_products(name))` +
+      `&user_id=eq.${currentUser.id}&order=created_at.desc&limit=20`
+    );
+    if(!rows || rows.length===0){
+      listEl.innerHTML = `<div class="history-empty">${lang()==='fi' ? 'Ei vielä sekoituksia. Tee kysely löytääksesi ensimmäisen!' : 'No blends yet. Take the quiz to find your first one!'}</div>`;
+      return;
+    }
+    listEl.innerHTML = rows.map(r=>{
+      const date = new Date(r.created_at).toLocaleDateString(lang()==='fi'?'fi-FI':'en-GB', {year:'numeric', month:'short', day:'numeric'});
+      const items = (r.blend_recipe_items||[]).sort((a,b)=> (a.role<b.role?-1:1))
+        .map(it=> `${it.percentage}% ${it.blend_market_products ? it.blend_market_products.name : '?'}`).join(' · ');
+      const badge = r.is_alternate ? `<span class="history-alt-badge">${lang()==='fi'?'VAIHTOEHTO':'ALTERNATE'}</span>` : '';
+      return `<div class="history-card">
+        <div class="history-card-top">
+          <span class="history-card-date">${date}${badge}</span>
+          <span class="history-card-score">${r.match_score}%</span>
+        </div>
+        <div class="history-card-items">${items}</div>
+      </div>`;
+    }).join('');
+  } catch(e){
+    console.error(e);
+    listEl.innerHTML = `<div class="history-empty">${lang()==='fi' ? 'Historian lataus epäonnistui.' : 'Could not load your history.'}</div>`;
+  }
+}
+
+document.getElementById('btn-open-history').addEventListener('click', openHistory);
+document.getElementById('btn-history-back').addEventListener('click', closeHistory);
 
 document.getElementById('tab-login').addEventListener('click', ()=>switchAuthTab('login'));
 document.getElementById('tab-register').addEventListener('click', ()=>switchAuthTab('register'));
@@ -719,8 +878,13 @@ async function saveResultToSupabase(answersObj, result){
 let pendingOrder = { recipeId: null, items: null, storeLabel: null };
 
 const STORES = Array.from({length:10}, (_,i)=>'Store #'+(i+1));
+// Recipes that already have a confirmed order -- once a recipe is here,
+// the user can no longer re-enter store selection for it (prevents
+// placing multiple conflicting orders for the same blend).
+let orderedRecipeIds = new Set();
 
 function goToStoreScreen(recipeId, items){
+  if(orderedRecipeIds.has(recipeId)) return; // already ordered -- ignore
   pendingOrder = { recipeId, items, storeLabel: null };
   document.getElementById('result-screen').style.display='none';
   document.getElementById('store-screen').style.display='block';
@@ -758,6 +922,8 @@ function selectStore(storeLabel){
   document.getElementById('confirm-note').value = '';
   document.getElementById('confirm-error').textContent = '';
   document.getElementById('confirm-success').style.display = 'none';
+  document.getElementById('confirm-back-row').style.display = 'flex';
+  document.getElementById('confirm-done-row').style.display = 'none';
   const btn = document.getElementById('btn-confirm-order');
   btn.disabled = false;
   btn.style.display = 'block';
@@ -771,6 +937,10 @@ document.getElementById('btn-store-back').addEventListener('click', ()=>{
 document.getElementById('btn-confirm-back').addEventListener('click', ()=>{
   document.getElementById('confirm-screen').style.display='none';
   document.getElementById('store-screen').style.display='block';
+});
+document.getElementById('btn-confirm-done').addEventListener('click', ()=>{
+  document.getElementById('confirm-screen').style.display='none';
+  document.getElementById('result-screen').style.display='block';
 });
 document.getElementById('btn-confirm-order').addEventListener('click', async ()=>{
   const btn = document.getElementById('btn-confirm-order');
@@ -792,12 +962,20 @@ document.getElementById('btn-confirm-order').addEventListener('click', async ()=
         note: document.getElementById('confirm-note').value.trim() || null,
       }]),
     });
+    orderedRecipeIds.add(pendingOrder.recipeId);
     btn.style.display = 'none';
+    // Order is now locked in: no more "choose a different store" for this
+    // recipe -- the only way forward from here is back to the blend
+    // (and eventually to payment, once that flow exists).
+    document.getElementById('confirm-back-row').style.display = 'none';
+    document.getElementById('confirm-done-row').style.display = 'flex';
     const suc = document.getElementById('confirm-success');
     suc.style.display = 'block';
     suc.innerHTML = `<div class="order-confirmed">${lang()==='fi'
       ? `Tilauspyyntö lähetetty — ${pendingOrder.storeLabel} ottaa sinuun yhteyttä.`
       : `Order request sent — ${pendingOrder.storeLabel} will be in touch.`}</div>`;
+    // Reflect the locked state back on the result screen's order button too.
+    refreshOrderButtonsLockedState();
   } catch(e){
     console.error(e);
     btn.disabled = false;
@@ -806,16 +984,26 @@ document.getElementById('btn-confirm-order').addEventListener('click', async ()=
   }
 });
 
+function refreshOrderButtonsLockedState(){
+  document.querySelectorAll('.order-btn').forEach(btn=>{
+    if(btn.dataset.recipeId && orderedRecipeIds.has(btn.dataset.recipeId)){
+      btn.disabled = true;
+      btn.textContent = lang()==='fi' ? 'Tilaus lähetetty ✓' : 'Order sent ✓';
+    }
+  });
+}
+
 /* =====================================================================
    SHARE — style-selectable, downloadable PNG card of the current blend.
    Birthday capture is optional/skippable, day+month only (no year).
    ===================================================================== */
 const SHARE_PALETTES = {
-  spruce:      { bg:'#2F3E37', accent:'#C9A96B', text:'#F1EEE4', sub:'rgba(241,238,228,0.75)' },
-  lingonberry: { bg:'#8B2A34', accent:'#F1EEE4', text:'#F1EEE4', sub:'rgba(241,238,228,0.8)' },
-  birch:       { bg:'#E4D6B4', accent:'#2F3E37', text:'#2B2A24', sub:'rgba(43,42,36,0.65)' },
+  spruce:      { bg:'#2F3E37', bg2:'#1E2A24', accent:'#C9A96B', text:'#F1EEE4', sub:'rgba(241,238,228,0.75)', barBase:'#4C6157', barMod1:'#C9A96B', barMod2:'#79A08D' },
+  lingonberry: { bg:'#8B2A34', bg2:'#5E1B22', accent:'#F1EEE4', text:'#F1EEE4', sub:'rgba(241,238,228,0.8)', barBase:'#F1EEE4', barMod1:'#2F3E37', barMod2:'#D9C79A' },
+  birch:       { bg:'#E4D6B4', bg2:'#D2C29C', accent:'#2F3E37', text:'#2B2A24', sub:'rgba(43,42,36,0.65)', barBase:'#2F3E37', barMod1:'#8B2A34', barMod2:'#B39A6E' },
 };
-let selectedShareStyle = 'spruce';
+let selectedShareStyle = 'lingonberry';
+let selectedShareFormat = 'square';
 let lastResultForShare = null;
 
 function populateShareBirthdaySelects(){
@@ -835,8 +1023,10 @@ function populateShareBirthdaySelects(){
 document.getElementById('btn-open-share').addEventListener('click', ()=>{
   if(!lastResultForShare) return;
   populateShareBirthdaySelects();
-  selectedShareStyle = 'spruce';
-  document.querySelectorAll('.share-style-card').forEach(c=>c.classList.toggle('selected', c.dataset.style==='spruce'));
+  selectedShareStyle = 'lingonberry';
+  selectedShareFormat = 'square';
+  document.querySelectorAll('.share-style-card').forEach(c=>c.classList.toggle('selected', c.dataset.style==='lingonberry'));
+  document.querySelectorAll('.share-format-card').forEach(c=>c.classList.toggle('selected', c.dataset.format==='square'));
   document.getElementById('share-overlay').style.display='flex';
 });
 document.getElementById('share-close').addEventListener('click', ()=>{
@@ -849,6 +1039,12 @@ document.querySelectorAll('.share-style-card').forEach(card=>{
   card.addEventListener('click', ()=>{
     selectedShareStyle = card.dataset.style;
     document.querySelectorAll('.share-style-card').forEach(c=>c.classList.toggle('selected', c===card));
+  });
+});
+document.querySelectorAll('.share-format-card').forEach(card=>{
+  card.addEventListener('click', ()=>{
+    selectedShareFormat = card.dataset.format;
+    document.querySelectorAll('.share-format-card').forEach(c=>c.classList.toggle('selected', c===card));
   });
 });
 
@@ -877,12 +1073,12 @@ document.getElementById('btn-create-card').addEventListener('click', ()=>{
   // network call beforehand can consume it, causing a silent/NotAllowedError
   // failure. Saving the (optional) birthday preference happens afterward,
   // fire-and-forget, since it's not needed for the share/download itself.
-  shareOrDownloadCard(selectedShareStyle);
+  shareOrDownloadCard(selectedShareStyle, selectedShareFormat);
   saveSharePreference(selectedShareStyle, day ? Number(day) : null, month ? Number(month) : null);
 });
 document.getElementById('btn-skip-share').addEventListener('click', ()=>{
   document.getElementById('share-overlay').style.display='none';
-  shareOrDownloadCard(selectedShareStyle);
+  shareOrDownloadCard(selectedShareStyle, selectedShareFormat);
 });
 
 function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight){
@@ -900,17 +1096,22 @@ function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight){
 
 // Draws the same "what you asked for vs. what this blend delivers" radar
 // (section: why-section) directly onto a canvas, so it travels with the
-// shared image instead of only existing on the results page.
+// shared image instead of only existing on the results page. Sized
+// proportionally to maxR so it works at both small (in-app) and large
+// (share card) scales.
 function drawRadarOnCanvas(ctx, cx, cy, maxR, target, actual, pal){
   const axes = RADAR_AXES;
   const n = axes.length;
   const angleStep = (2*Math.PI)/n;
+  const lineW = Math.max(1.5, maxR*0.019);
+  const dotR = Math.max(3, maxR*0.035);
+  const fontPx = Math.max(11, Math.round(maxR*0.11));
   function pt(i, value){
     const angle = -Math.PI/2 + i*angleStep;
     const r = (clamp(value,0,10)/10)*maxR;
     return [cx + r*Math.cos(angle), cy + r*Math.sin(angle)];
   }
-  ctx.lineWidth = 1;
+  ctx.lineWidth = Math.max(1, maxR*0.008);
   ctx.strokeStyle = pal.radarGrid;
   [0.25,0.5,0.75,1].forEach(frac=>{
     ctx.beginPath();
@@ -926,9 +1127,9 @@ function drawRadarOnCanvas(ctx, cx, cy, maxR, target, actual, pal){
     ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke();
   });
 
-  ctx.setLineDash([7,6]);
+  ctx.setLineDash([lineW*3, lineW*2.4]);
   ctx.strokeStyle = pal.radarTarget;
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = lineW;
   ctx.beginPath();
   axes.forEach((a,i)=>{ const [x,y]=pt(i,target[a.key]); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
   ctx.closePath(); ctx.stroke();
@@ -936,27 +1137,32 @@ function drawRadarOnCanvas(ctx, cx, cy, maxR, target, actual, pal){
 
   ctx.fillStyle = pal.radarActualFill;
   ctx.strokeStyle = pal.radarActualLine;
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = lineW;
   ctx.beginPath();
   axes.forEach((a,i)=>{ const [x,y]=pt(i,actual[a.key]); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
   ctx.closePath(); ctx.fill(); ctx.stroke();
 
   ctx.fillStyle = pal.radarActualLine;
-  axes.forEach((a,i)=>{ const [x,y]=pt(i,actual[a.key]); ctx.beginPath(); ctx.arc(x,y,4.5,0,2*Math.PI); ctx.fill(); });
+  axes.forEach((a,i)=>{ const [x,y]=pt(i,actual[a.key]); ctx.beginPath(); ctx.arc(x,y,dotR,0,2*Math.PI); ctx.fill(); });
 
   ctx.fillStyle = pal.sub;
-  ctx.font = '600 15px "IBM Plex Mono", monospace';
+  ctx.font = `600 ${fontPx}px "IBM Plex Mono", monospace`;
   ctx.textAlign = 'center';
   axes.forEach((a,i)=>{
-    const angle=-Math.PI/2+i*angleStep, labelR=maxR+34;
+    const angle=-Math.PI/2+i*angleStep, labelR=maxR+fontPx*2.2;
     const x=cx+labelR*Math.cos(angle), y=cy+labelR*Math.sin(angle);
     ctx.fillText(lang()==='fi'?a.fi:a.en, x, y);
   });
   ctx.textAlign = 'left';
 }
 
-function renderShareCard(style){
-  const pal = { ...SHARE_PALETTES[style] || SHARE_PALETTES.spruce };
+function renderShareCard(style, format){
+  const isStory = format === 'story';
+  const W = 1080, H = isStory ? 1920 : 1080;
+  const margin = 80;
+  const contentW = W - margin*2;
+
+  const pal = { ...SHARE_PALETTES[style] || SHARE_PALETTES.lingonberry };
   pal.radarGrid = style==='birch' ? 'rgba(43,42,36,0.15)' : 'rgba(241,238,228,0.18)';
   pal.radarTarget = pal.accent==='#F1EEE4' ? '#F1EEE4' : '#8B2A34';
   pal.radarActualFill = style==='birch' ? 'rgba(47,62,55,0.18)' : 'rgba(241,238,228,0.20)';
@@ -964,62 +1170,108 @@ function renderShareCard(style){
 
   const result = lastResultForShare;
   const canvas = document.createElement('canvas');
-  canvas.width = 800; canvas.height = 1150;
+  canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = pal.bg; ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Gradient background instead of a flat fill, for more visual depth.
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, pal.bg);
+  grad.addColorStop(1, pal.bg2);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Large soft decorative circles (bean-inspired), corner-anchored.
+  ctx.save();
+  ctx.globalAlpha = 0.07;
+  ctx.fillStyle = pal.accent;
+  ctx.beginPath(); ctx.arc(W*0.9, H*0.05, W*0.38, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W*0.02, H*0.98, W*0.30, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  const topSafe = isStory ? 190 : 70;   // Instagram Story UI safe zones
+  const bottomSafe = isStory ? 230 : 60;
+  let y = topSafe;
 
   ctx.fillStyle = pal.text;
-  ctx.font = '600 28px "Space Grotesk", sans-serif';
-  ctx.fillText('COFFEE IDENTITY', 60, 80);
-  ctx.font = '400 15px "IBM Plex Mono", monospace';
+  ctx.font = `600 ${isStory?40:34}px "Space Grotesk", sans-serif`;
+  ctx.fillText('COFFEE IDENTITY', margin, y);
+  y += isStory ? 34 : 28;
+  ctx.font = `400 ${isStory?18:15}px "IBM Plex Mono", monospace`;
   ctx.fillStyle = pal.sub;
-  ctx.fillText('BLEND INTELLIGENCE ENGINE', 60, 106);
+  ctx.fillText('BLEND INTELLIGENCE ENGINE', margin, y);
 
   if(currentUser && currentUser.name){
     ctx.fillStyle = pal.accent;
-    ctx.font = '600 15px "IBM Plex Mono", monospace';
+    ctx.font = `600 ${isStory?18:15}px "IBM Plex Mono", monospace`;
     ctx.textAlign = 'right';
-    ctx.fillText((lang()==='fi'?'KÄYTTÄJÄLLE ':'FOR ') + currentUser.name.toUpperCase(), canvas.width-60, 90);
+    ctx.fillText((lang()==='fi'?'KÄYTTÄJÄLLE ':'FOR ') + currentUser.name.toUpperCase(), W-margin, topSafe-6);
     ctx.textAlign = 'left';
   }
 
+  y += isStory ? 60 : 42;
   ctx.strokeStyle = pal.accent; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(60,130); ctx.lineTo(740,130); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(margin,y); ctx.lineTo(W-margin,y); ctx.stroke();
 
+  y += isStory ? 68 : 50;
   ctx.fillStyle = pal.accent;
-  ctx.font = '600 16px "IBM Plex Mono", monospace';
-  ctx.fillText('MY BLEND', 60, 175);
+  ctx.font = `600 ${isStory?22:18}px "IBM Plex Mono", monospace`;
+  ctx.fillText('MY BLEND', margin, y);
 
+  y += isStory ? 62 : 48;
   ctx.fillStyle = pal.text;
-  ctx.font = '700 38px "Space Grotesk", sans-serif';
-  const titleLines = drawWrappedText(ctx, document.getElementById('result-title').textContent, 60, 222, 680, 44);
+  ctx.font = `700 ${isStory?54:44}px "Space Grotesk", sans-serif`;
+  const titleLH = isStory ? 60 : 50;
+  const titleLines = drawWrappedText(ctx, document.getElementById('result-title').textContent, margin, y, contentW, titleLH);
+  y += titleLines*titleLH + (isStory ? 55 : 40);
 
-  let y = 222 + titleLines*44 + 44;
-  result.items.forEach(it=>{
-    ctx.fillStyle = pal.accent;
-    ctx.font = '700 30px "IBM Plex Mono", monospace';
-    ctx.fillText(it.percentage+'%', 60, y);
+  // Colored, segmented blend bar -- the same visual language as the
+  // in-app Blend Bar, now baked into the shareable image.
+  const barH = isStory ? 92 : 68;
+  const barColors = [pal.barBase, pal.barMod1, pal.barMod2];
+  let bx = margin;
+  result.items.forEach((it,i)=>{
+    const segW = contentW * (it.percentage/100);
+    const segColor = barColors[i] || pal.accent;
+    ctx.fillStyle = segColor;
+    ctx.fillRect(bx, y, Math.max(segW-3,0), barH);
+    const isLight = segColor==='#F1EEE4' || segColor==='#D9C79A' || segColor==='#B39A6E';
+    ctx.fillStyle = isLight ? '#2B2A24' : '#F1EEE4';
+    ctx.font = `700 ${isStory?26:20}px "IBM Plex Mono", monospace`;
+    if(segW > 66){ ctx.fillText(it.percentage+'%', bx+16, y+barH/2+7); }
+    bx += segW;
+  });
+  y += barH + (isStory ? 40 : 28);
+
+  ctx.font = `600 ${isStory?21:16}px "Space Grotesk", sans-serif`;
+  result.items.forEach((it,i)=>{
+    ctx.fillStyle = barColors[i] || pal.accent;
+    ctx.beginPath(); ctx.arc(margin+8, y-7, 8, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = pal.text;
-    ctx.font = '600 20px "Space Grotesk", sans-serif';
-    ctx.fillText(it.product.name, 160, y-5);
-    y += 46;
+    ctx.fillText(it.product.name, margin+28, y);
+    y += isStory ? 36 : 27;
   });
 
-  y += 14;
+  y += isStory ? 24 : 12;
   ctx.strokeStyle = pal.accent; ctx.globalAlpha=0.4; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(60,y); ctx.lineTo(740,y); ctx.stroke(); ctx.globalAlpha=1;
-  y += 38;
+  ctx.beginPath(); ctx.moveTo(margin,y); ctx.lineTo(W-margin,y); ctx.stroke(); ctx.globalAlpha=1;
+
+  y += isStory ? 56 : 42;
   ctx.fillStyle = pal.text;
-  ctx.font = '600 19px "Space Grotesk", sans-serif';
-  ctx.fillText((result.matchScore)+'% taste match', 60, y);
+  ctx.font = `600 ${isStory?27:21}px "Space Grotesk", sans-serif`;
+  ctx.fillText((result.matchScore)+'% taste match', margin, y);
 
-  const radarCy = y + 210;
-  drawRadarOnCanvas(ctx, canvas.width/2, radarCy, 130, result.target, result.finalVector, pal);
+  const radarR = isStory ? 220 : 150;
+  const radarCy = y + radarR + (isStory ? 80 : 55);
+  drawRadarOnCanvas(ctx, W/2, radarCy, radarR, result.target, result.finalVector, pal);
 
+  ctx.textAlign = 'center';
+  ctx.fillStyle = pal.accent;
+  ctx.font = `600 ${isStory?24:18}px "Space Grotesk", sans-serif`;
+  ctx.fillText(lang()==='fi' ? 'Löydä oma sekoituksesi' : 'Find your own blend', W/2, H-bottomSafe-28);
   ctx.fillStyle = pal.sub;
-  ctx.font = '400 13px "IBM Plex Mono", monospace';
-  ctx.fillText('Formulated for the Finnish market · coffee-identity.app', 60, canvas.height-40);
+  ctx.font = `400 ${isStory?17:13}px "IBM Plex Mono", monospace`;
+  ctx.fillText('coffee-identity.app', W/2, H-bottomSafe);
+  ctx.textAlign = 'left';
 
   return canvas;
 }
@@ -1033,15 +1285,16 @@ function dataURLtoBlob(dataURL){
   return new Blob([array], {type: mime});
 }
 
-async function shareOrDownloadCard(style){
-  const canvas = renderShareCard(style);
+async function shareOrDownloadCard(style, format){
+  const canvas = renderShareCard(style, format);
   // Synchronous canvas->blob path (toDataURL + manual decode, no async
   // gap) so navigator.share() below fires as close to the click as
   // possible -- it requires recent user activation, and even the short
   // async delay of canvas.toBlob()'s callback can be enough for some
   // browsers to reject it.
   const blob = dataURLtoBlob(canvas.toDataURL('image/png'));
-  const file = new File([blob], 'my-coffee-blend.png', {type:'image/png'});
+  const filename = `my-coffee-blend-${format}.png`;
+  const file = new File([blob], filename, {type:'image/png'});
 
   if(navigator.canShare && navigator.canShare({files:[file]})){
     try{
@@ -1059,7 +1312,7 @@ async function shareOrDownloadCard(style){
   }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'my-coffee-blend.png';
+  a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
@@ -1494,6 +1747,12 @@ function wireOrderButton(container, recipeId, items){
   const btn = container.querySelector('.order-btn');
   if(!recipeId){
     btn.textContent = lang()==='fi' ? 'Tilaus ei saatavilla' : 'Ordering unavailable';
+    return;
+  }
+  btn.dataset.recipeId = recipeId;
+  if(orderedRecipeIds.has(recipeId)){
+    btn.disabled = true;
+    btn.textContent = lang()==='fi' ? 'Tilaus lähetetty ✓' : 'Order sent ✓';
     return;
   }
   btn.textContent = lang()==='fi' ? 'Tilaa tämä sekoitus' : 'Order this blend';
